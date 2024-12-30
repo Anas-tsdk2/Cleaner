@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Cleaner</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>CORA's Cleaner</h1>
+
+        <div class="token-section">
+            <div class="token-container">
+                <div class="token-icon">🔑</div>
+                <input type="password" id="bearerToken" placeholder="Collez votre Bearer Token ici" class="token-input"
+                    autocomplete="off" />
+                <button id="clearToken" class="token-clear" title="Effacer">✕</button>
+            </div>
+            <div id="tokenStatus" class="token-status"></div>
+        </div>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+        <p>Glissez votre fichier CSV-UTF8 ici</p>
+        <input type="file" id="fileInput" accept=".csv" hidden>
+    </div>
+
+    <div class="actions">
+        <button id="cleanButton" class="button" disabled>
+            <span class="button-icon">🧹</span>
+            Nettoyer les données
+        </button>
+    </div>
+
+    <div class="tables-wrapper">
+        <div class="table-container">
+            <table id="previewTable"></table>
+        </div>
+        <div class="table-container">
+            <table id="resultTable"></table>
+        </div>
+    </div>
+    </div>
+
+    <!-- Charger les scripts dans le bon ordre -->
+    <script src="js/security.js"></script>
+    <script src="js/tokenManager.js"></script>
+    <script src="js/dragonflyAPI.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,259 @@
+/* Variables globales */
+:root {
+    --primary-color: #2196F3;
+    --background-color: #f5f5f5;
+    --text-color: #333;
+    --border-color: #ddd;
+    --error-color: #f44336;
+    --success-color: #4CAF50;
+}
+
+/* Reset basique */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Styles de base */
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--primary-color);
+}
+
+/* Zone de drop */
+.drop-zone {
+    background: white;
+    border: 2px dashed var(--primary-color);
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.drop-zone:hover {
+    background: #f8f9fa;
+    border-color: #1976D2;
+}
+
+.drop-zone.drag-over {
+    background: #e3f2fd;
+    border-color: #1976D2;
+}
+
+/* Zone des actions */
+.actions {
+    margin: 20px 0;
+    text-align: center;
+}
+
+/* Style du bouton */
+.button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.button:hover {
+    background-color: #1976D2;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.button:active {
+    transform: translateY(0);
+}
+
+.button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.button-icon {
+    font-size: 20px;
+}
+
+/* Wrapper pour les tableaux */
+/* Modifier la classe tables-wrapper */
+.tables-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Garde 2 colonnes égales */
+    gap: 10px;
+    /* Réduit l'espace entre les tableaux */
+    margin-top: 20px;
+    width: 98%;
+    /* Utilise presque toute la largeur */
+    max-width: none;
+    /* Enlève la limite de largeur */
+}
+
+/* Ajuster la largeur des tableaux */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* Assurer l'alignement des colonnes entre les tableaux */
+table th,
+table td {
+    width: auto;
+    /* Largeur automatique basée sur le contenu */
+    white-space: nowrap;
+    /* Empêche le retour à la ligne */
+    min-width: 100px;
+    /* Largeur minimum pour chaque colonne */
+}
+
+/* Ajuster le container principal */
+.container {
+    width: 98%;
+    /* Utilise presque toute la largeur de l'écran */
+    max-width: none;
+    margin: 0 auto;
+    padding: 10px;
+}
+
+/* Style du tableau */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+td {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    text-align: left;
+}
+
+tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+/* Cellules modifiées */
+.cell-modified {
+    background-color: #e8f5e9;
+    border-left: 3px solid #4CAF50;
+}
+
+/* Adaptation responsive */
+@media (max-width: 768px) {
+    .tables-wrapper {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* styles token */
+.token-section {
+    margin: 20px auto;
+    max-width: 600px;
+    padding: 15px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.token-container {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+}
+
+.token-container:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.token-icon {
+    font-size: 18px;
+    margin-right: 10px;
+    color: #6c757d;
+}
+
+.token-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #495057;
+    font-family: 'Courier New', monospace;
+}
+
+.token-input:focus {
+    outline: none;
+}
+
+.token-input::placeholder {
+    color: #adb5bd;
+}
+
+.token-clear {
+    background: none;
+    border: none;
+    color: #adb5bd;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    transition: color 0.3s ease;
+}
+
+.token-clear:hover {
+    color: #dc3545;
+}
+
+.token-status {
+    margin-top: 8px;
+    font-size: 13px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.token-status.success {
+    color: #28a745;
+}
+
+.token-status.error {
+    color: #dc3545;
+}
