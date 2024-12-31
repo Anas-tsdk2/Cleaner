@@ -232,18 +232,12 @@ async function handleCleanData() {
 }
 
 function displayCleanedRow(cleanedData, tbody) {
-    console.log("📊 Données reçues pour affichage:", cleanedData);
     const tr = document.createElement('tr');
     
-    // Vérifier si nous avons des données valides
-    if (!cleanedData || !cleanedData.data) {
-        console.error("❌ Données invalides:", cleanedData);
-        return;
-    }
-
-    // Créer le tooltip
+    // Créer le tooltip une seule fois et l'attacher au body
     const tooltip = document.createElement('div');
     tooltip.className = 'custom-tooltip';
+    document.body.appendChild(tooltip);
     
     // Ajouter le header au tooltip
     const tooltipHeader = document.createElement('div');
@@ -257,49 +251,60 @@ function displayCleanedRow(cleanedData, tbody) {
     analysisContent.textContent = cleanedData.analysis || 'Aucune analyse disponible';
     tooltip.appendChild(analysisContent);
     
-    // Ajouter le tooltip à la ligne
-    tr.appendChild(tooltip);
-    
-    // Vérifier et créer les cellules
+    // Créer les cellules
     if (Array.isArray(cleanedData.data)) {
         cleanedData.data.forEach(cell => {
             if (cell && typeof cell === 'object') {
                 const td = document.createElement('td');
                 td.textContent = cell.value || '-';
                 
-                // Application du style basé sur la confiance
                 const confidenceClass = getConfidenceClass(cell.confidence);
                 td.className = `confidence-cell ${confidenceClass}`;
                 
-                // Ajouter l'info-bulle de base
                 td.title = `Confiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
                 
                 tr.appendChild(td);
             }
         });
-    } else {
-        console.error("❌ Format de données incorrect:", cleanedData);
-        return;
     }
     
     tbody.appendChild(tr);
 
-    // Gestion de la position du tooltip
+    // Gestion des événements pour le tooltip
+    tr.addEventListener('mouseenter', () => {
+        tooltip.style.display = 'block';
+        tr.classList.add('active-row');
+    });
+
+    tr.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+        tr.classList.remove('active-row');
+    });
+
     tr.addEventListener('mousemove', (e) => {
-        const rect = tr.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        
-        tooltip.style.left = `${e.clientX + 20}px`;
-        tooltip.style.top = `${e.clientY + scrollTop - rect.top}px`;
-        
-        // Empêcher le tooltip de sortir de l'écran
-        const tooltipRect = tooltip.getBoundingClientRect();
-        if (tooltipRect.right > window.innerWidth) {
-            tooltip.style.left = `${window.innerWidth - tooltipRect.width - 20}px`;
+        // Calcul de la position optimale
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const tooltipWidth = tooltip.offsetWidth;
+        const tooltipHeight = tooltip.offsetHeight;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+
+        // Position horizontale
+        let left = mouseX + 20;
+        if (left + tooltipWidth > windowWidth - 20) {
+            left = mouseX - tooltipWidth - 20;
         }
-        if (tooltipRect.bottom > window.innerHeight) {
-            tooltip.style.top = `${window.innerHeight - tooltipRect.height - 20}px`;
+
+        // Position verticale
+        let top = mouseY + 20;
+        if (top + tooltipHeight > windowHeight - 20) {
+            top = mouseY - tooltipHeight - 20;
         }
+
+        // Appliquer les positions
+        tooltip.style.left = `${Math.max(20, left)}px`;
+        tooltip.style.top = `${Math.max(20, top)}px`;
     });
 }
 

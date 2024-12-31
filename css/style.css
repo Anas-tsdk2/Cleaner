@@ -296,7 +296,7 @@ tr:nth-child(even) {
 
 /* Ajouter dans style.css */
 .custom-tooltip {
-    position: absolute;
+    position: fixed; /* Changed from absolute to fixed */
     max-width: 600px;
     background: white;
     border: 1px solid #ddd;
@@ -311,20 +311,30 @@ tr:nth-child(even) {
     line-height: 1.4;
     overflow-y: auto;
     max-height: 80vh;
+    pointer-events: none; /* Pour éviter les problèmes de hover */
 }
 
-.tooltip-header {
-    font-weight: bold;
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
-}
-
+/* Supprimer le hover automatique et utiliser JavaScript à la place */
 tr:hover .custom-tooltip {
-    display: block;
+    display: none;
 }
 
-/* Pour s'assurer que le tableau de résultats a une position relative */
-#resultTable tbody tr {
+/* Style pour la ligne active */
+#resultTable tbody tr.active-row {
+    background-color: rgba(33, 150, 243, 0.05);
+}
+
+/* Ajouter dans style.css */
+.cell-modified {
+    font-weight: bold;
     position: relative;
+}
+
+.cell-modified::after {
+    content: '•'; /* Petit point pour indiquer la modification */
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 12px;
+    color: var(--primary-color);
 }
