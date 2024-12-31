@@ -184,54 +184,7 @@ function displaySourceTable() {
     table.appendChild(tbody);
 }
 
-async function handleCleanData() {
-    const cleanButton = document.getElementById('cleanButton');
-    cleanButton.disabled = true;
-
-    try {
-        state.cleanedRows = [];
-        const resultTable = document.getElementById('resultTable');
-        resultTable.innerHTML = '';
-
-        // Création de l'en-tête du tableau résultat
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        state.headers.forEach(header => {
-            const th = document.createElement('th');
-            th.textContent = header;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        resultTable.appendChild(thead);
-
-        // Création du corps du tableau résultat
-        const tbody = document.createElement('tbody');
-        resultTable.appendChild(tbody);
-
-        // Traitement de chaque ligne
-        for (const row of state.rows) {
-            console.log("🔄 Traitement de la ligne:", row);
-            const result = await dragonflyAPI.processFullRow(row, state.headers);
-            console.log("✨ Résultat obtenu:", result);
-            
-            if (result && result.success) {
-                displayCleanedRow(result, tbody);
-                state.cleanedRows.push(result);
-            } else {
-                console.error("❌ Erreur sur la ligne:", result);
-                displayErrorRow(row, tbody);
-            }
-        }
-
-    } catch (error) {
-        console.error('Erreur pendant le nettoyage:', error);
-        alert('Une erreur est survenue pendant le nettoyage');
-    } finally {
-        cleanButton.disabled = false;
-    }
-}
-
-function displayCleanedRow(cleanedData, tbody) {
+function displayCleanedRow(cleanedData, tbody, originalRow) {
     const tr = document.createElement('tr');
     
     // Créer le tooltip une seule fois et l'attacher au body
@@ -253,16 +206,27 @@ function displayCleanedRow(cleanedData, tbody) {
     
     // Créer les cellules
     if (Array.isArray(cleanedData.data)) {
-        cleanedData.data.forEach(cell => {
+        cleanedData.data.forEach((cell, index) => {
             if (cell && typeof cell === 'object') {
                 const td = document.createElement('td');
                 td.textContent = cell.value || '-';
                 
-                const confidenceClass = getConfidenceClass(cell.confidence);
-                td.className = `confidence-cell ${confidenceClass}`;
+                // Classes de base
+                const classes = ['confidence-cell'];
                 
-                td.title = `Confiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
+                // Ajouter la classe de confiance
+                classes.push(getConfidenceClass(cell.confidence));
                 
+                // Vérifier si la valeur a été modifiée
+                const originalValue = originalRow[index];
+                if (originalValue !== cell.value) {
+                    classes.push('cell-modified');
+                    td.title = `Original: "${originalValue}"\nConfiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
+                } else {
+                    td.title = `Confiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
+                }
+                
+                td.className = classes.join(' ');
                 tr.appendChild(td);
             }
         });
@@ -282,7 +246,6 @@ function displayCleanedRow(cleanedData, tbody) {
     });
 
     tr.addEventListener('mousemove', (e) => {
-        // Calcul de la position optimale
         const mouseX = e.clientX;
         const mouseY = e.clientY;
         const tooltipWidth = tooltip.offsetWidth;
@@ -290,22 +253,66 @@ function displayCleanedRow(cleanedData, tbody) {
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
 
-        // Position horizontale
         let left = mouseX + 20;
         if (left + tooltipWidth > windowWidth - 20) {
             left = mouseX - tooltipWidth - 20;
         }
 
-        // Position verticale
         let top = mouseY + 20;
         if (top + tooltipHeight > windowHeight - 20) {
             top = mouseY - tooltipHeight - 20;
         }
 
-        // Appliquer les positions
         tooltip.style.left = `${Math.max(20, left)}px`;
         tooltip.style.top = `${Math.max(20, top)}px`;
     });
+}
+
+// Modifier aussi handleCleanData pour passer la ligne originale
+async function handleCleanData() {
+    const cleanButton = document.getElementById('cleanButton');
+    cleanButton.disabled = true;
+
+    try {
+        state.cleanedRows = [];
+        const resultTable = document.getElementById('resultTable');
+        resultTable.innerHTML = '';
+
+        // Création de l'en-tête
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        state.headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        resultTable.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        resultTable.appendChild(tbody);
+
+        // Traitement de chaque ligne
+        for (const row of state.rows) {
+            console.log("🔄 Traitement de la ligne:", row);
+            const result = await dragonflyAPI.processFullRow(row, state.headers);
+            console.log("✨ Résultat obtenu:", result);
+            
+            if (result && result.success) {
+                displayCleanedRow(result, tbody, row);  // Passage de la ligne originale
+                state.cleanedRows.push(result);
+            } else {
+                console.error("❌ Erreur sur la ligne:", result);
+                displayErrorRow(row, tbody);
+            }
+        }
+
+    } catch (error) {
+        console.error('Erreur pendant le nettoyage:', error);
+        alert('Une erreur est survenue pendant le nettoyage');
+    } finally {
+        cleanButton.disabled = false;
+    }
 }
 
 // Fonction utilitaire pour déterminer la classe de confiance

@@ -271,58 +271,60 @@ Remember to use your <row_analysis> section to show your thought process before 
         };
     }
 
+   
     async parseFullRowResponse(response) {
-        console.log("🔍 Début parsing réponse complète:", response);
         try {
             const content = response.choices[0].message.content;
             console.log("📄 Contenu brut reçu:", content);
             
-            // Extraction de l'analyse
-            const analysisMatch = content.match(/<row_analysis>([\s\S]*?)<\/row_analysis>/);
-            if (analysisMatch) {
-                console.log("📊 Analyse trouvée:", analysisMatch[1].trim());
-            } else {
-                console.warn("⚠️ Pas d'analyse trouvée dans la réponse");
+            // Extraction simple du JSON entre ```json et ```
+            const jsonMatch = content.match(/```json\s*(\[[\s\S]*?\])\s*```/);
+            if (!jsonMatch) {
+                console.error("❌ Pas de JSON trouvé");
+                return { success: false, error: 'JSON introuvable' };
             }
-            
-            // Recherche du JSON
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-                console.log("🔎 JSON brut trouvé:", jsonMatch[0]);
-                try {
-                    const cleanedData = JSON.parse(jsonMatch[0]);
-                    console.log("✅ JSON parsé avec succès:", cleanedData);
-                    return {
-                        analysis: analysisMatch ? analysisMatch[1].trim() : '',
-                        data: cleanedData,
-                        success: true
-                    };
-                } catch (jsonError) {
-                    console.error("❌ Erreur parsing JSON:", jsonError);
-                    console.log("📌 Tentative de parsing sur:", jsonMatch[0]);
-                    return {
-                        success: false,
-                        error: `Erreur parsing JSON: ${jsonError.message}`,
-                        rawContent: content
-                    };
-                }
-            } else {
-                console.error("❌ Aucun JSON trouvé dans la réponse");
+    
+            // Nettoyage basique du JSON
+            let jsonStr = jsonMatch[1]
+                .replace(/[""]/g, '"')  // Remplace les guillemets intelligents
+                .replace(/'/g, "'")     // Normalise les apostrophes
+                .replace(/\/\/.*$/gm, '') // Supprime les commentaires inline
+                .replace(/,(\s*[}\]])/g, '$1'); // Supprime les virgules trailing
+    
+            try {
+                const data = JSON.parse(jsonStr);
+                console.log("✅ Parsing JSON réussi:", data);
+                
+                // Extraction simple de l'analyse
+                const analysis = content.split('```json')[0]
+                    .replace(/<row_analysis>/, '')
+                    .replace(/<\/row_analysis>/, '')
+                    .trim();
+    
                 return {
-                    success: false,
-                    error: 'Aucun JSON trouvé dans la réponse',
-                    rawContent: content
+                    success: true,
+                    data,
+                    analysis
+                };
+    
+            } catch (parseError) {
+                console.error("❌ Erreur parsing JSON:", parseError);
+                console.log("JSON problématique:", jsonStr);
+                return { 
+                    success: false, 
+                    error: parseError.message 
                 };
             }
+    
         } catch (error) {
-            console.error("❌ Erreur générale parsing réponse:", error);
-            return {
-                success: false,
-                error: error.message,
-                rawContent: response
+            console.error("❌ Erreur générale:", error);
+            return { 
+                success: false, 
+                error: error.message 
             };
         }
     }
+    
     generateErrorResponse(row, headers) {
         return {
             success: false,
