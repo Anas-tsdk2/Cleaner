@@ -160,55 +160,44 @@ class DragonflyAPI {
      */
     async processCell(value, type, currentRow) {
         try {
-            // Pour email, chercher dans toute la ligne
-            if (type === 'e-mail') {
-                const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-                for (let cell of currentRow) {
-                    const match = cell?.match(emailRegex);
-                    if (match) {
-                        value = match[0];
-                        break;
-                    }
+            // PHASE 1 : Détection Programmatique
+            if (['e-mail', 'numéro de téléphone', 'organisation'].includes(type)) {
+                let cleanedValue = value;
+
+                switch (type) {
+                    case 'e-mail':
+                        // 1.1 Regex trouve emails
+                        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+                        for (let cell of currentRow) {
+                            const match = cell?.match(emailRegex);
+                            if (match) {
+                                cleanedValue = match[0];
+                                break;
+                            }
+                        }
+                        if (!cleanedValue.includes('@')) {
+                            cleanedValue = cleanedValue.replace(/\s+/g, '@');
+                        }
+                        return cleanedValue.toLowerCase();
+
+                    case 'numéro de téléphone':
+                        const digits = value?.replace(/\D/g, '');
+                        if (digits?.length === 10) {
+                            return digits.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+                        }
+                        return '-';
+
+                    case 'organisation':
+                        const sigleRegex = /\b(SA|SARL|SAS)\b/i;
+                        const sigleMatch = value?.match(sigleRegex);
+                        if (sigleMatch) {
+                            cleanedValue = value.replace(sigleRegex, sigleMatch[0].toUpperCase());
+                        }
+                        return cleanedValue;
                 }
             }
-    
-            // Si on traite nom_complet, le faire en premier car référence
-            const nomComplet = currentRow[3]; // Colonne nom_complet
-            if (nomComplet) {
-                const [prenom, nom] = nomComplet.split(' ');
-                
-                // Correction prénom si vide ou décalé
-                if (type === 'prénom' && (!value || value === '-' || value === '')) {
-                    value = prenom;
-                }
-                // Correction nom si vide ou contient un prénom
-                if (type === 'nom' && (!value || value === prenom)) {
-                    value = nom;
-                }
-            }
-    
-            // Traitement spécial pour civilité
-            if (type === 'civilité') {
-                const prenom = currentRow[1] || nomComplet?.split(' ')[0];
-                const fonction = currentRow[4];
-                const prenomsFeminins = ['anaïs', 'aurélia', 'anne', 'sophie', 'marie'];
-                
-                if (fonction?.toLowerCase().includes('directrice') || 
-                    prenomsFeminins.includes(prenom?.toLowerCase()) ||
-                    (prenom?.toLowerCase().endsWith('e') && 
-                     !['baptiste', 'étienne', 'philippe'].includes(prenom?.toLowerCase()))) {
-                    return 'Madame';
-                }
-                return 'Monsieur';
-            }
-    
-            // Types à traiter même si vides
-            const alwaysProcess = ['civilité', 'prénom', 'nom', 'e-mail', 'organisation'];
-            
-            if (!alwaysProcess.includes(type) && (!value || value.trim() === '' || value === '\r')) {
-                return '-';
-            }
-    
+
+            // Créer le contexte une seule fois
             const context = currentRow ? {
                 civilite: currentRow[0] || '',
                 prenom: currentRow[1] || '',
@@ -219,31 +208,23 @@ class DragonflyAPI {
                 organisation: currentRow[6] || '',
                 telephone: currentRow[7] || ''
             } : {};
-    
-            let rules;
-            switch(type) {
-                case 'civilité':
-                    rules = `RÈGLES:
-    - IMPORTANT: Pour prénom="${context.prenom}":
-      * Si prénom féminin connu (Anaïs, Aurélia) -> "Madame"
-      * Si fonction contient "Directrice" -> "Madame"
-      * Si prénom finit par "e" (sauf Baptiste, Étienne) -> "Madame"
-      * Sinon -> "Monsieur"
-    - Toujours retourner "Monsieur" ou "Madame"`;
-                    break;
-    
-                case 'prénom':
-                    rules = `RÈGLES:
+
+            // PHASE 2 : Traiter d'abord tous les champs sauf civilité
+            if (type !== 'civilité') {
+                let rules;
+                switch (type) {
+                    case 'prénom':
+                        rules = `RÈGLES:
     - Si valeur vide ou "-":
       * Utiliser premier mot du nom_complet
       * Si pas trouvé, regarder si le nom est un prénom
     - Première lettre majuscule, reste en minuscules
     - Garder les accents
     - Ex: "jean-pierre" -> "Jean-Pierre"`;
-                    break;
-    
-                case 'nom':
-                    rules = `RÈGLES:
+                        break;
+
+                    case 'nom':
+                        rules = `RÈGLES:
     - Si la valeur est un prénom et que prénom="-":
       * Utiliser le nom depuis nom_complet
       * Ex: prénom="-" et nom="Loïc" -> prendre "Lebrun" depuis "Loïc Lebrun"
@@ -251,81 +232,150 @@ class DragonflyAPI {
       * Première lettre majuscule
       * Reste en minuscules
       * Garder les accents`;
-                    break;
-    
-                case 'nom complet':
-                    rules = `RÈGLES:
+                        break;
+
+                    case 'nom complet':
+                        rules = `RÈGLES:
     - Format "Prénom Nom"
     - Utiliser le contexte pour reconstruire si nécessaire
     - Première lettre de chaque mot en majuscule
     - Garder les accents
     - Ex: "DURAND Antoine" -> "Antoine Durand"`;
-                    break;
-    
-                case 'fonction':
-                    rules = `RÈGLES:
+                        break;
+
+                    case 'fonction':
+                        rules = `RÈGLES:
     - Garder DSI, PDG, DRH, RSSI en majuscules
     - Si "Directeur/trice des Systèmes d'Information" -> "DSI"
     - Si "Responsable Sécurité" + "Systèmes" -> "RSSI"
     - Supprimer tout après "/"
     - Pour les autres: première lettre majuscule`;
-                    break;
-    
-                case 'e-mail':
-                    rules = `RÈGLES:
-    - Valeur trouvée: "${value}"
-    - Tout en minuscules
-    - Supprimer les espaces
-    - Format: xxx@yyy.zzz
-    - Si invalide -> "-"`;
-                    break;
-    
-                case 'numéro de téléphone':
-                    rules = `RÈGLES:
-    - Garder uniquement les chiffres
-    - Si moins de 10 chiffres -> "-"
-    - Format XX XX XX XX XX
-    - Supprimer points et caractères spéciaux`;
-                    break;
-    
-                case 'organisation':
-                    rules = `RÈGLES:
-    - Première lettre des mots en majuscule
-    - Garder SA, SARL, SAS en majuscules
-    - Standardiser les "&" et "et"
-    - Ex: "mark & comm" -> "Mark & Comm"`;
-                    break;
-            }
-    
-            const prompt = `OBJECTIF: Nettoyer la donnée en utilisant le contexte
+                        break;
+                }
+
+                if (rules) {
+                    const prompt = `OBJECTIF: Nettoyer la donnée en utilisant le contexte
     ENTRÉE: "${value}"
     TYPE: ${type}
     CONTEXTE: ${JSON.stringify(context, null, 2)}
     ${rules}
     SORTIE ATTENDUE: {"value": "valeur_nettoyée"}
     CONTRAINTE: Retourne uniquement le JSON avec la valeur nettoyée.`;
-    
-            const response = await this.processRow({
-                value: value,
-                type: type,
-                prompt: prompt
-            });
-    
-            try {
-                const content = response.choices?.[0]?.message?.content;
-                const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
-                if (jsonMatch && jsonMatch[1]) {
-                    return jsonMatch[1];
+
+                    const response = await this.processRow({
+                        value: value,
+                        type: type,
+                        prompt: prompt
+                    });
+
+                    try {
+                        const content = response.choices?.[0]?.message?.content;
+                        const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
+                        if (jsonMatch && jsonMatch[1]) {
+                            return jsonMatch[1];
+                        }
+                    } catch (e) {
+                        console.error('Erreur extraction value:', e);
+                        return value;
+                    }
                 }
-                return type === 'civilité' ? 'Monsieur' : value;
-            } catch (e) {
-                console.error('Erreur extraction value:', e);
-                return type === 'civilité' ? 'Monsieur' : value;
             }
+
+            // PHASE 3 : Traiter explicitement la civilité à la fin
+            if (type === 'civilité' || (currentRow[0] === '' && context.prenom)) {
+                console.log("🎭 Traitement civilité basé sur:", {
+                    prenom: context.prenom,
+                    fonction: context.fonction,
+                    titre: context.civilite
+                });
+
+
+                const prompt = `OBJECTIF: Déterminer la civilité
+            ENTRÉE:
+            - Prénom: "${currentRow[1]}"
+            - Fonction: "${currentRow[4]}"
+            - Titre actuel: "${currentRow[0]}"
+
+            RÈGLES:
+            1. Si fonction contient "Directrice" -> "Madame"
+            2. Sinon, détermine si le prénom est masculin ou féminin
+            SORTIE ATTENDUE: {"value": "Monsieur ou Madame"}`;
+
+                const response = await this.processRow({
+                    value: context.civilite,
+                    type: 'civilité',
+                    prompt: prompt
+                });
+
+                try {
+                    const content = response.choices?.[0]?.message?.content;
+                    const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
+                    return jsonMatch?.[1] || '-';
+                } catch (e) {
+                    return '-';
+                }
+            }
+
+            return value;
         } catch (error) {
             console.error('Erreur traitement cellule:', error);
-            return type === 'civilité' ? 'Monsieur' : value;
+            return type === 'civilité' ? '-' : value;
         }
+    }
+
+    async validateWithLLM(value, type, prompt) {
+        const response = await this.processRow({
+            value: value,
+            type: type,
+            prompt: prompt
+        });
+
+        try {
+            const content = response.choices?.[0]?.message?.content;
+            const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
+            const cleanedValue = jsonMatch?.[1];
+
+            // Ne jamais retourner les valeurs codées en dur
+            if (['email_validé', 'téléphone_validé', 'organisation_standardisée'].includes(cleanedValue)) {
+                return value;
+            }
+
+            // Pour les valeurs invalides
+            if (cleanedValue === '-' || !cleanedValue) {
+                if (type === 'e-mail' || type === 'numéro de téléphone') {
+                    return '-';
+                }
+                return value;
+            }
+
+            return cleanedValue;
+        } catch (e) {
+            console.error('Erreur validation LLM:', e);
+            // En cas d'erreur, retourner '-' pour email et téléphone, sinon la valeur originale
+            if (type === 'e-mail' || type === 'numéro de téléphone') {
+                return '-';
+            }
+            return value;
+        }
+    }
+
+    // Méthode utilitaire pour vérifier si une valeur est un email valide
+    isValidEmail(value) {
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return emailRegex.test(value);
+    }
+
+    // Méthode utilitaire pour vérifier si une valeur est un téléphone valide
+    isValidPhone(value) {
+        const phoneRegex = /^(\d{2}\s){4}\d{2}$/;
+        return phoneRegex.test(value);
+    }
+
+    // Méthode utilitaire pour formater un numéro de téléphone
+    formatPhone(value) {
+        const digits = value.replace(/\D/g, '');
+        if (digits.length !== 10) return '-';
+        return digits.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
     }
 }
 

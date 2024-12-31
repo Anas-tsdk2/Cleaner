@@ -233,20 +233,25 @@ async function handleCleanData() {
         console.log("📊 Données originales:", state.originalData);
 
         const cleanedRows = [];
-        // Traitement ligne par ligne
-        for (let rowIndex = 0; rowIndex < state.originalData.rows.length; rowIndex++) {
-            const row = state.originalData.rows[rowIndex];
+        for (let row of state.originalData.rows) {
             console.log("🔄 Traitement ligne:", row);
             
-            // Nettoyer la ligne
-            const cleanedRow = await Promise.all(
-                row.map((cell, index) => 
-                    cleanCell(cell, index, state.originalData.headers, row)
-                )
-            );
-            cleanedRows.push(cleanedRow);
+            // D'abord nettoyer tous les champs sauf civilité
+            const tempRow = [''];  // Place vide pour la civilité
+            for(let i = 1; i < row.length; i++) {
+                const cleanedCell = await cleanCell(row[i], i, state.originalData.headers, row);
+                tempRow.push(cleanedCell);
+            }
+            
+            // PUIS traiter la civilité avec le contexte nettoyé
+            console.log("👔 Traitement civilité avec contexte nettoyé:", tempRow);
+            const civilite = await cleanCell('', 0, state.originalData.headers, tempRow);
+            console.log("👔 Civilité déterminée:", civilite);
+            
+            tempRow[0] = civilite;
+            cleanedRows.push(tempRow);
 
-            // Mettre à jour l'affichage après chaque ligne
+            // Mise à jour progressive
             state.cleanedData = {
                 headers: state.originalData.headers,
                 rows: cleanedRows
@@ -264,9 +269,13 @@ async function handleCleanData() {
 
 // Fonction de nettoyage d'une cellule
 async function cleanCell(cell, columnIndex, headers, currentRow) {
-    if (!cell) return '-';
-    
     try {
+        // Pour la civilité (spécifiquement pour l'index 0)
+        if (columnIndex === 0) {
+            console.log("🎭 Traitement civilité détecté dans cleanCell");
+            return await dragonflyAPI.processCell(cell, 'civilité', currentRow);
+        }
+
         console.log("🔍 cleanCell appelé avec:", {
             cell: cell,
             columnIndex: columnIndex,
@@ -274,10 +283,9 @@ async function cleanCell(cell, columnIndex, headers, currentRow) {
             currentRow: currentRow
         });
         
-        const columnName = headers[columnIndex].trim().toLowerCase();
+        const columnName = headers[columnIndex]?.trim().toLowerCase();
         console.log("📝 Appel API pour:", columnName);
         
-        // Passer currentRow à processCell
         const cleanedValue = await dragonflyAPI.processCell(cell, columnName, currentRow);
         console.log("✅ Réponse API:", cleanedValue);
         
