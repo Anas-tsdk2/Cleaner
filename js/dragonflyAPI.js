@@ -1,24 +1,16 @@
-/**
- * Client API pour communiquer avec Dragonfly API
- */
 class DragonflyAPI {
     constructor() {
         this.baseUrl = 'https://ai.dragonflygroup.fr/api/v1';
         this.assistantId = 'asst_1f1UeJGMURpenLfrj4Aaykyp';
-        this.currentRow = null; // Pour stocker la ligne en cours
     }
 
-    /**
-     * Change l'ID de l'assistant utilisé
-     */
     setAssistantId(id) {
+        console.log("🔧 Changement d'assistant ID:", id);
         this.assistantId = id;
     }
 
-    /**
-     * Vérifie si un token est valide en essayant de récupérer les assistants
-     */
     async validateToken(token) {
+        console.log("🔑 Validation du token...");
         try {
             const response = await fetch(`${this.baseUrl}/user/assistants`, {
                 method: 'GET',
@@ -26,17 +18,17 @@ class DragonflyAPI {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            return response.ok;
+            const isValid = response.ok;
+            console.log(isValid ? "✅ Token valide" : "❌ Token invalide");
+            return isValid;
         } catch (error) {
-            console.error('Erreur validation token:', error);
+            console.error("❌ Erreur validation token:", error);
             return false;
         }
     }
 
-    /**
-     * Récupère la liste des assistants disponibles
-     */
     async getAssistants() {
+        console.log("📋 Récupération des assistants");
         const token = TokenManager.get();
         if (!token) throw new Error('Token manquant');
 
@@ -51,22 +43,163 @@ class DragonflyAPI {
         return await response.json();
     }
 
-    /**
-     * Lit et concatène les données d'un stream
-     */
+    async processFullRow(row, headers) {
+        console.log("🚀 Traitement ligne complète:", { row, headers });
+        try {
+            const context = this.buildRowContext(row, headers);
+            console.log("📝 Contexte construit:", context);
+            
+            const prompt = this.buildFullRowPrompt(context);
+            console.log("📋 Prompt généré");
+            
+            const response = await this.processRow({
+                prompt: prompt,
+                fullRow: row
+            });
+            console.log("✨ Réponse API reçue:", response);
+
+            const result = await this.parseFullRowResponse(response);
+            console.log("✅ Résultat final:", result);
+            return result;
+        } catch (error) {
+            console.error("❌ Erreur dans processFullRow:", error);
+            return this.generateErrorResponse(row, headers);
+        }
+    }
+
+    buildRowContext(row, headers) {
+        const context = {};
+        headers.forEach((header, index) => {
+            context[this.normalizeHeader(header)] = row[index] || '';
+        });
+        return context;
+    }
+
+    normalizeHeader(header) {
+        return header
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '_');
+    }
+
+    buildFullRowPrompt(context) {
+        return `
+You are an AI assistant specialized in data cleaning and normalization for CSV datasets containing personal and professional information. 
+Your task is to process each cell in the dataset, applying appropriate cleaning rules and standardizations.
+
+<data>
+${JSON.stringify(context, null, 2)}
+</data>
+
+
+Instructions:
+
+1. Analyze each row in the dataset as a whole, considering the context and relationships between cells.
+
+2. Before processing individual cells, wrap your analysis in <row_analysis> tags. In this analysis:
+   - List out the content of each cell in the row.
+   - Identify the cell type (e.g., Civilité, Prénom, Nom, etc.) for each cell and its corresponding cleaning rules.
+   - Note any inconsistencies or potential data quality issues within the row.
+   - Identify any relationships between fields (e.g., email and name) that might inform your decisions.
+   - If any name or full name fields are empty, plan how to reconstruct them using available information.
+
+3. Apply the following cleaning rules based on the cell type:
+
+   a. Civilité (Title):
+      - Use other fields (first name, last name, full name or email) in the row to infer the correct title and avoid error
+      - Normalize to "Madame" or "Monsieur"
+
+   b. Prénom (First Name):
+      - Capitalize the first letter
+      - Remove extra spaces
+      - Correct obvious spelling errors
+      - If empty, attempt to reconstruct from Nom complet or E-mail
+
+   c. Nom (Last Name):
+      - Capitalize the first letter
+      - Remove extra spaces
+      - Correct obvious spelling errors
+      - If empty, attempt to reconstruct from Nom complet or E-mail
+
+   d. Nom complet (Full Name):
+      - Ensure it matches the combination of Prénom and Nom
+      - Format as "Prénom Nom"
+      - If empty, reconstruct from Prénom and Nom, or from E-mail if possible
+
+   e. Fonction (Job Title):
+      - Capitalize the first letter of each word
+      - Standardize common titles (e.g., "Directeur" vs "Dir.")
+      - Remove unnecessary details or duplications
+
+   f. E-mail:
+      - Ensure it's a valid email format
+      - Correct obvious domain errors (e.g., missing .com or .fr)
+
+   g. Organisation:
+      - Capitalize the first letter of each word
+      - Remove extra spaces
+      - Correct obvious spelling errors
+
+   h. Numéro de téléphone (Phone Number):
+      - Standardize to format: 00 00 00 00 00
+      - Remove any non-digit characters
+      - Ensure it's a valid French phone number (10 digits)
+
+4. Choose the most likely correction based on the context and cleaning rules.
+
+5. Generate a confidence score for your correction (0.0 to 1.0).
+
+6. For each cell, output a JSON object with the following structure:
+
+   {
+     "value": "normalized_value",
+     "confidence": 0.0 to 1.0,
+     "notes": "Brief explanation of the correction or standardization"
+   }
+
+7. Maintain consistency across the dataset, especially for recurring values like organization names or job titles.
+
+8. If multiple interpretations are possible, choose the most likely option based on the context.
+
+Output your results as a JSON array containing objects for each cell in the row. Here's an example of the structure (with generic content):
+
+[
+  {
+    "field": "Civilité",
+    "value": "normalized_value",
+    "confidence": 0.0,
+    "notes": "Explanation"
+  },
+  {
+    "field": "Prénom",
+    "value": "normalized_value",
+    "confidence": 0.0,
+    "notes": "Explanation"
+  },
+  // ... (continue for all fields)
+]
+
+Remember to use your <row_analysis> section to show your thought process before providing the final JSON output.
+
+`;
+    }
+
     async readStream(reader) {
         let result = '';
         const decoder = new TextDecoder();
+        console.log("📖 Début lecture stream");
 
         try {
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) break;
+                if (done) {
+                    console.log("✅ Fin lecture stream");
+                    break;
+                }
 
                 const chunk = decoder.decode(value);
-                //console.log("Chunk reçu:", chunk); // Debug
 
-                // Sépare les lignes et traite chaque ligne
                 const lines = chunk.split('\n');
                 for (const line of lines) {
                     if (line.trim().startsWith('data:')) {
@@ -81,34 +214,23 @@ class DragonflyAPI {
                                 result += parsed.choices[0].message.content;
                             }
                         } catch (e) {
-                            // Ignore les erreurs de parsing JSON pour les lignes incomplètes
                             if (jsonStr.trim()) {
-                                console.debug('Ligne non parsable:', jsonStr);
+                                console.debug('⚠️ Chunk non parsable:', jsonStr);
                             }
                         }
                     }
                 }
             }
         } catch (error) {
-            console.error('Erreur lecture stream:', error);
+            console.error("❌ Erreur lecture stream:", error);
         }
 
-        // Nettoyage final
-        result = result.trim();
-        console.log("Résultat final:", result); // Debug
-
-        return result;
+        console.log("🎯 Résultat stream complet:", result);
+        return result.trim();
     }
 
-    /**
-     * Traite une ligne de données via l'API
-     */
     async processRow(rowData) {
-        // Stocker la ligne courante si disponible
-        if (rowData.fullRow) {
-            this.currentRow = rowData.fullRow;
-        }
-
+        console.log("🔄 Traitement row:", rowData);
         const token = TokenManager.get();
         if (!token) throw new Error('Token manquant');
 
@@ -123,16 +245,12 @@ class DragonflyAPI {
                     role: "user",
                     content: [{
                         type: "text",
-                        text: rowData.prompt || `Nettoie cette donnée de type ${rowData.type}: "${rowData.value}"`
+                        text: rowData.prompt
                     }]
                 }],
                 assistantId: this.assistantId,
                 temperature: 1,
-                stream: true,
-                stream_options: {
-                    include_usage: true,
-                    continuous_usage_stats: false
-                }
+                stream: true
             })
         });
 
@@ -141,11 +259,9 @@ class DragonflyAPI {
             throw new Error(`Erreur API: ${response.status} ${error.message || ''}`);
         }
 
-        // Lecture du stream
         const reader = response.body.getReader();
         const result = await this.readStream(reader);
 
-        // On retourne un objet qui imite la structure de réponse non-streamée
         return {
             choices: [{
                 message: {
@@ -155,223 +271,80 @@ class DragonflyAPI {
         };
     }
 
-    /**
-     * Traite une cellule unique
-     */
-    async processCell(value, type, currentRow) {
+    async parseFullRowResponse(response) {
+        console.log("🔍 Début parsing réponse complète:", response);
         try {
-            // PHASE 1 : Détection Programmatique
-            if (['e-mail', 'numéro de téléphone', 'organisation'].includes(type)) {
-                let cleanedValue = value;
-
-                switch (type) {
-                    case 'e-mail':
-                        // 1.1 Regex trouve emails
-                        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-                        for (let cell of currentRow) {
-                            const match = cell?.match(emailRegex);
-                            if (match) {
-                                cleanedValue = match[0];
-                                break;
-                            }
-                        }
-                        if (!cleanedValue.includes('@')) {
-                            cleanedValue = cleanedValue.replace(/\s+/g, '@');
-                        }
-                        return cleanedValue.toLowerCase();
-
-                    case 'numéro de téléphone':
-                        const digits = value?.replace(/\D/g, '');
-                        if (digits?.length === 10) {
-                            return digits.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-                        }
-                        return '-';
-
-                    case 'organisation':
-                        const sigleRegex = /\b(SA|SARL|SAS)\b/i;
-                        const sigleMatch = value?.match(sigleRegex);
-                        if (sigleMatch) {
-                            cleanedValue = value.replace(sigleRegex, sigleMatch[0].toUpperCase());
-                        }
-                        return cleanedValue;
-                }
+            const content = response.choices[0].message.content;
+            console.log("📄 Contenu brut reçu:", content);
+            
+            // Extraction de l'analyse
+            const analysisMatch = content.match(/<row_analysis>([\s\S]*?)<\/row_analysis>/);
+            if (analysisMatch) {
+                console.log("📊 Analyse trouvée:", analysisMatch[1].trim());
+            } else {
+                console.warn("⚠️ Pas d'analyse trouvée dans la réponse");
             }
-
-            // Créer le contexte une seule fois
-            const context = currentRow ? {
-                civilite: currentRow[0] || '',
-                prenom: currentRow[1] || '',
-                nom: currentRow[2] || '',
-                nom_complet: currentRow[3] || '',
-                fonction: currentRow[4] || '',
-                email: currentRow[5] || '',
-                organisation: currentRow[6] || '',
-                telephone: currentRow[7] || ''
-            } : {};
-
-            // PHASE 2 : Traiter d'abord tous les champs sauf civilité
-            if (type !== 'civilité') {
-                let rules;
-                switch (type) {
-                    case 'prénom':
-                        rules = `RÈGLES:
-    - Si valeur vide ou "-":
-      * Utiliser premier mot du nom_complet
-      * Si pas trouvé, regarder si le nom est un prénom
-    - Première lettre majuscule, reste en minuscules
-    - Garder les accents
-    - Ex: "jean-pierre" -> "Jean-Pierre"`;
-                        break;
-
-                    case 'nom':
-                        rules = `RÈGLES:
-    - Si la valeur est un prénom et que prénom="-":
-      * Utiliser le nom depuis nom_complet
-      * Ex: prénom="-" et nom="Loïc" -> prendre "Lebrun" depuis "Loïc Lebrun"
-    - Sinon appliquer règles standard:
-      * Première lettre majuscule
-      * Reste en minuscules
-      * Garder les accents`;
-                        break;
-
-                    case 'nom complet':
-                        rules = `RÈGLES:
-    - Format "Prénom Nom"
-    - Utiliser le contexte pour reconstruire si nécessaire
-    - Première lettre de chaque mot en majuscule
-    - Garder les accents
-    - Ex: "DURAND Antoine" -> "Antoine Durand"`;
-                        break;
-
-                    case 'fonction':
-                        rules = `RÈGLES:
-    - Garder DSI, PDG, DRH, RSSI en majuscules
-    - Si "Directeur/trice des Systèmes d'Information" -> "DSI"
-    - Si "Responsable Sécurité" + "Systèmes" -> "RSSI"
-    - Supprimer tout après "/"
-    - Pour les autres: première lettre majuscule`;
-                        break;
-                }
-
-                if (rules) {
-                    const prompt = `OBJECTIF: Nettoyer la donnée en utilisant le contexte
-    ENTRÉE: "${value}"
-    TYPE: ${type}
-    CONTEXTE: ${JSON.stringify(context, null, 2)}
-    ${rules}
-    SORTIE ATTENDUE: {"value": "valeur_nettoyée"}
-    CONTRAINTE: Retourne uniquement le JSON avec la valeur nettoyée.`;
-
-                    const response = await this.processRow({
-                        value: value,
-                        type: type,
-                        prompt: prompt
-                    });
-
-                    try {
-                        const content = response.choices?.[0]?.message?.content;
-                        const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
-                        if (jsonMatch && jsonMatch[1]) {
-                            return jsonMatch[1];
-                        }
-                    } catch (e) {
-                        console.error('Erreur extraction value:', e);
-                        return value;
-                    }
-                }
-            }
-
-            // PHASE 3 : Traiter explicitement la civilité à la fin
-            if (type === 'civilité' || (currentRow[0] === '' && context.prenom)) {
-                console.log("🎭 Traitement civilité basé sur:", {
-                    prenom: context.prenom,
-                    fonction: context.fonction,
-                    titre: context.civilite
-                });
-
-
-                const prompt = `OBJECTIF: Déterminer la civilité
-            ENTRÉE:
-            - Prénom: "${currentRow[1]}"
-            - Fonction: "${currentRow[4]}"
-            - Titre actuel: "${currentRow[0]}"
-
-            RÈGLES:
-            1. Si fonction contient "Directrice" -> "Madame"
-            2. Sinon, détermine si le prénom est masculin ou féminin
-            SORTIE ATTENDUE: {"value": "Monsieur ou Madame"}`;
-
-                const response = await this.processRow({
-                    value: context.civilite,
-                    type: 'civilité',
-                    prompt: prompt
-                });
-
+            
+            // Recherche du JSON
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                console.log("🔎 JSON brut trouvé:", jsonMatch[0]);
                 try {
-                    const content = response.choices?.[0]?.message?.content;
-                    const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
-                    return jsonMatch?.[1] || '-';
-                } catch (e) {
-                    return '-';
+                    const cleanedData = JSON.parse(jsonMatch[0]);
+                    console.log("✅ JSON parsé avec succès:", cleanedData);
+                    return {
+                        analysis: analysisMatch ? analysisMatch[1].trim() : '',
+                        data: cleanedData,
+                        success: true
+                    };
+                } catch (jsonError) {
+                    console.error("❌ Erreur parsing JSON:", jsonError);
+                    console.log("📌 Tentative de parsing sur:", jsonMatch[0]);
+                    return {
+                        success: false,
+                        error: `Erreur parsing JSON: ${jsonError.message}`,
+                        rawContent: content
+                    };
                 }
+            } else {
+                console.error("❌ Aucun JSON trouvé dans la réponse");
+                return {
+                    success: false,
+                    error: 'Aucun JSON trouvé dans la réponse',
+                    rawContent: content
+                };
             }
-
-            return value;
         } catch (error) {
-            console.error('Erreur traitement cellule:', error);
-            return type === 'civilité' ? '-' : value;
+            console.error("❌ Erreur générale parsing réponse:", error);
+            return {
+                success: false,
+                error: error.message,
+                rawContent: response
+            };
         }
     }
-
-    async validateWithLLM(value, type, prompt) {
-        const response = await this.processRow({
-            value: value,
-            type: type,
-            prompt: prompt
-        });
-
-        try {
-            const content = response.choices?.[0]?.message?.content;
-            const jsonMatch = content.match(/\{[^{]*"value"\s*:\s*"([^"]+)"[^}]*\}/);
-            const cleanedValue = jsonMatch?.[1];
-
-            // Ne jamais retourner les valeurs codées en dur
-            if (['email_validé', 'téléphone_validé', 'organisation_standardisée'].includes(cleanedValue)) {
-                return value;
-            }
-
-            // Pour les valeurs invalides
-            if (cleanedValue === '-' || !cleanedValue) {
-                if (type === 'e-mail' || type === 'numéro de téléphone') {
-                    return '-';
-                }
-                return value;
-            }
-
-            return cleanedValue;
-        } catch (e) {
-            console.error('Erreur validation LLM:', e);
-            // En cas d'erreur, retourner '-' pour email et téléphone, sinon la valeur originale
-            if (type === 'e-mail' || type === 'numéro de téléphone') {
-                return '-';
-            }
-            return value;
-        }
+    generateErrorResponse(row, headers) {
+        return {
+            success: false,
+            headers:data.map((header, index) => ({
+                field: header,
+                value: row[index] || '',
+                confidence: 0,
+                notes: "Erreur de traitement"
+            }))
+        };
     }
 
-    // Méthode utilitaire pour vérifier si une valeur est un email valide
     isValidEmail(value) {
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         return emailRegex.test(value);
     }
 
-    // Méthode utilitaire pour vérifier si une valeur est un téléphone valide
     isValidPhone(value) {
         const phoneRegex = /^(\d{2}\s){4}\d{2}$/;
         return phoneRegex.test(value);
     }
 
-    // Méthode utilitaire pour formater un numéro de téléphone
     formatPhone(value) {
         const digits = value.replace(/\D/g, '');
         if (digits.length !== 10) return '-';
@@ -379,6 +352,4 @@ class DragonflyAPI {
     }
 }
 
-
-// Export de l'instance unique
 window.dragonflyAPI = new DragonflyAPI();

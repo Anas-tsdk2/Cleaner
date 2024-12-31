@@ -1,3 +1,4 @@
+
 // Configuration du mode debug
 const DEBUG = true; // À mettre à false en production
 const VALID_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel'];
@@ -12,18 +13,25 @@ const ERROR_MESSAGES = {
 // État de l'application
 const state = {
     currentFile: null,
-    originalData: null,
-    cleanedData: null
+    headers: null,
+    rows: null,
+    cleanedRows: []
 };
 
-const dragonflyAPI = new DragonflyAPI();
+let dragonflyAPI;
+
 
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', () => {
-    SecurityLogger.log('Application initialisée');
-    initializeDropZone();
-    initializeCleanButton();
+    if (window.dragonflyAPI) {
+        dragonflyAPI = window.dragonflyAPI;
+        SecurityLogger.log('DragonflyAPI initialisée');
+        initializeDropZone();
+        initializeCleanButton();
+    } else {
+        console.error('❌ DragonflyAPI non trouvée. Vérifiez l\'ordre de chargement des scripts.');
+    }
 });
 
 // Initialisation de la zone de drop
@@ -31,10 +39,8 @@ function initializeDropZone() {
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
 
-    // Gestion du clic sur la zone
     dropZone.addEventListener('click', () => fileInput.click());
-
-    // Gestion du drag & drop
+    
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('drag-over');
@@ -47,44 +53,32 @@ function initializeDropZone() {
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('drag-over');
-        
         const file = e.dataTransfer.files[0];
         if (file) handleFile(file);
     });
 
-    // Gestion de la sélection de fichier
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) handleFile(file);
     });
 }
 
-// Initialisation du bouton de nettoyage
 function initializeCleanButton() {
     const cleanButton = document.getElementById('cleanButton');
     cleanButton.addEventListener('click', handleCleanData);
-    cleanButton.disabled = true; // Désactivé par défaut
+    cleanButton.disabled = true;
 }
 
-// Gestion sécurisée du fichier
-function handleFile(file) {
-    // Logging de sécurité
+async function handleFile(file) {
     SecurityLogger.log('Tentative de chargement de fichier', { 
         name: file.name, 
         size: file.size, 
         type: file.type 
     });
 
-    // Validation du fichier
     try {
-        if (!file) {
-            throw new Error(ERROR_MESSAGES.noFile);
-        }
-
-        if (file.size > MAX_FILE_SIZE) {
-            throw new Error(ERROR_MESSAGES.tooLarge);
-        }
-
+        if (!file) throw new Error(ERROR_MESSAGES.noFile);
+        if (file.size > MAX_FILE_SIZE) throw new Error(ERROR_MESSAGES.tooLarge);
         if (!VALID_MIME_TYPES.includes(file.type) && !file.name.endsWith('.csv')) {
             throw new Error(ERROR_MESSAGES.invalidType);
         }
@@ -113,97 +107,76 @@ function handleFile(file) {
     }
 }
 
+function sanitizeContent(content) {
+    return content
+        .replace(/[<>]/g, '')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+        .trim();
+}
 
-// Fonction sécurisée de parsing CSV
 function parseCSV(content) {
     try {
-        // Sanitize le contenu avant parsing
         content = sanitizeContent(content);
-        
-        // Divise le contenu en lignes
         const lines = content.split('\n');
         if (lines.length === 0) {
             SecurityLogger.error('Fichier CSV vide');
             return;
         }
 
-        // Détecte le séparateur (virgule ou point-virgule)
         const separator = lines[0].includes(';') ? ';' : ',';
-
-        // Parse les données
-        const headers = lines[0].split(separator);
-        const rows = lines.slice(1)
+        state.headers = lines[0].split(separator).map(h => h.trim());
+        state.rows = lines.slice(1)
             .filter(line => line.trim() !== '')
-            .map(line => line.split(separator));
+            .map(line => line.split(separator).map(cell => cell.trim()));
 
-        // Vérifie la cohérence des données
-        if (!validateCSVStructure(headers, rows)) {
+        if (!validateCSVStructure(state.headers, state.rows)) {
             SecurityLogger.error('Structure CSV invalide');
             alert('Le fichier CSV semble mal formaté');
             return;
         }
 
-        // Stocke les données originales
-        state.originalData = {
-            headers: headers,
-            rows: rows
-        };
-
         SecurityLogger.log('Parsing CSV réussi', { 
-            rowCount: rows.length,
-            headerCount: headers.length 
+            rowCount: state.rows.length,
+            headerCount: state.headers.length 
         });
 
-        // Active le bouton de nettoyage
         document.getElementById('cleanButton').disabled = false;
+        displaySourceTable();
 
-        // Affiche les données
-        displayPreview(headers, rows);
     } catch (error) {
         SecurityLogger.error('Erreur lors du parsing CSV', error);
         alert('Erreur lors de la lecture du fichier CSV');
     }
 }
 
-// Nouvelle fonction de sanitization
-function sanitizeContent(content) {
-    return content
-        .replace(/[<>]/g, '') // Anti-XSS basique
-        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Supprime les caractères de contrôle
-        .trim();
-}
-
-
-// Nouvelle fonction de validation
 function validateCSVStructure(headers, rows) {
     if (!headers.length) return false;
     const headerCount = headers.length;
     return rows.every(row => row.length === headerCount);
 }
 
-// Le reste de votre code reste inchangé...
-function displayPreview(headers, rows) {
+function displaySourceTable() {
     const table = document.getElementById('previewTable');
     table.innerHTML = '';
 
-    // Crée l'en-tête
+    // En-tête
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    headers.forEach(header => {
+    state.headers.forEach(header => {
         const th = document.createElement('th');
-        th.textContent = sanitizeCell(header.trim() || '-');
+        th.textContent = header;
         headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
     table.appendChild(thead);
 
-    // Crée le corps du tableau
+    // Corps
     const tbody = document.createElement('tbody');
-    rows.forEach(row => {
+    state.rows.forEach(row => {
         const tr = document.createElement('tr');
         row.forEach(cell => {
             const td = document.createElement('td');
-            td.textContent = sanitizeCell(cell.trim() || '-');
+            td.textContent = cell || '-';
             tr.appendChild(td);
         });
         tbody.appendChild(tr);
@@ -211,256 +184,146 @@ function displayPreview(headers, rows) {
     table.appendChild(tbody);
 }
 
-// Nouvelle fonction de sanitization des cellules
-function sanitizeCell(value) {
-    return value
-        .replace(/[<>]/g, '')
-        .trim();
-}
-
-// Le reste des fonctions de nettoyage...
 async function handleCleanData() {
-    console.log("🚀 Début du nettoyage");
-    if (!state.originalData) {
-        console.warn('Pas de données à nettoyer');
-        return;
-    }
+    const cleanButton = document.getElementById('cleanButton');
+    cleanButton.disabled = true;
 
     try {
-        const cleanButton = document.getElementById('cleanButton');
-        cleanButton.disabled = true;
+        state.cleanedRows = [];
+        const resultTable = document.getElementById('resultTable');
+        resultTable.innerHTML = '';
 
-        console.log("📊 Données originales:", state.originalData);
+        // Création de l'en-tête du tableau résultat
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        state.headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        resultTable.appendChild(thead);
 
-        const cleanedRows = [];
-        for (let row of state.originalData.rows) {
-            console.log("🔄 Traitement ligne:", row);
+        // Création du corps du tableau résultat
+        const tbody = document.createElement('tbody');
+        resultTable.appendChild(tbody);
+
+        // Traitement de chaque ligne
+        for (const row of state.rows) {
+            console.log("🔄 Traitement de la ligne:", row);
+            const result = await dragonflyAPI.processFullRow(row, state.headers);
+            console.log("✨ Résultat obtenu:", result);
             
-            // D'abord nettoyer tous les champs sauf civilité
-            const tempRow = [''];  // Place vide pour la civilité
-            for(let i = 1; i < row.length; i++) {
-                const cleanedCell = await cleanCell(row[i], i, state.originalData.headers, row);
-                tempRow.push(cleanedCell);
+            if (result && result.success) {
+                displayCleanedRow(result, tbody);
+                state.cleanedRows.push(result);
+            } else {
+                console.error("❌ Erreur sur la ligne:", result);
+                displayErrorRow(row, tbody);
             }
-            
-            // PUIS traiter la civilité avec le contexte nettoyé
-            console.log("👔 Traitement civilité avec contexte nettoyé:", tempRow);
-            const civilite = await cleanCell('', 0, state.originalData.headers, tempRow);
-            console.log("👔 Civilité déterminée:", civilite);
-            
-            tempRow[0] = civilite;
-            cleanedRows.push(tempRow);
-
-            // Mise à jour progressive
-            state.cleanedData = {
-                headers: state.originalData.headers,
-                rows: cleanedRows
-            };
-            displayCleanedData(state.cleanedData.headers, state.cleanedData.rows);
         }
 
     } catch (error) {
-        console.error('❌ Erreur lors du nettoyage:', error);
-        alert('Une erreur est survenue lors du nettoyage des données');
+        console.error('Erreur pendant le nettoyage:', error);
+        alert('Une erreur est survenue pendant le nettoyage');
     } finally {
         cleanButton.disabled = false;
     }
 }
 
-// Fonction de nettoyage d'une cellule
-async function cleanCell(cell, columnIndex, headers, currentRow) {
-    try {
-        // Pour la civilité (spécifiquement pour l'index 0)
-        if (columnIndex === 0) {
-            console.log("🎭 Traitement civilité détecté dans cleanCell");
-            return await dragonflyAPI.processCell(cell, 'civilité', currentRow);
-        }
-
-        console.log("🔍 cleanCell appelé avec:", {
-            cell: cell,
-            columnIndex: columnIndex,
-            headerName: headers[columnIndex],
-            currentRow: currentRow
-        });
-        
-        const columnName = headers[columnIndex]?.trim().toLowerCase();
-        console.log("📝 Appel API pour:", columnName);
-        
-        const cleanedValue = await dragonflyAPI.processCell(cell, columnName, currentRow);
-        console.log("✅ Réponse API:", cleanedValue);
-        
-        return cleanedValue || cell;
-    } catch (error) {
-        console.error("❌ Erreur dans cleanCell:", error);
-        return cell;
-    }
-}
-
-function normalizeCivility(value) {
-    value = value.toLowerCase().trim();
-    if (value.includes('m.') || value.includes('mr') || value.includes('monsieur')) return 'Monsieur';
-    if (value.includes('mme') || value.includes('madame')) return 'Madame';
-    return value;
-}
-
-function normalizeNameCase(value) {
-    return value.replace(/\s+/g, ' ')
-                .trim()
-                .split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
-}
-
-function cleanEmail(value) {
-    if (!value.includes('@') || !value.includes('.')) return '-';
-    return value.toLowerCase().trim().replace(/\s+/g, '');
-}
-
-function formatPhoneNumber(value) {
-    // Garde uniquement les chiffres
-    let numbers = value.replace(/\D/g, '');
-    if (numbers.length !== 10) return value;
+function displayCleanedRow(cleanedData, tbody) {
+    console.log("📊 Données reçues pour affichage:", cleanedData);
+    const tr = document.createElement('tr');
     
-    // Format XX XX XX XX XX
-    return numbers.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-}
-
-function cleanFunction(value) {
-    return value
-        .replace(/\s+/g, ' ')
-        .replace(/\/.*$/, '') // Supprime tout après un /
-        .replace(/\(.*\)/, '') // Supprime les parenthèses et leur contenu
-        .trim();
-}
-
-// Affiche les données nettoyées
-function displayCleanedData(headers, rows) {
-    const resultTable = document.getElementById('resultTable');
-    resultTable.innerHTML = '';
-
-    // Crée l'en-tête
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-    headers.forEach(header => {
-        const th = document.createElement('th');
-        th.textContent = header.trim() || '-';
-        headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    resultTable.appendChild(thead);
-
-    // Crée le corps du tableau
-    const tbody = document.createElement('tbody');
-    rows.forEach((row, rowIndex) => {
-        const tr = document.createElement('tr');
-        row.forEach((cell, cellIndex) => {
-            const td = document.createElement('td');
-            const originalCell = state.originalData.rows[rowIndex][cellIndex];
-            td.textContent = cell || '-';
-            
-            if (cell !== originalCell) {
-                td.classList.add('cell-modified');
-                td.title = `Original: "${originalCell}"`;
-            }
-            
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-    });
-    resultTable.appendChild(tbody);
-}
-
-function showError(message) {
-    // Vous pouvez adapter l'affichage selon votre interface
-    alert(message);
-}
-
-function initializeTokenInput() {
-    const tokenInput = document.getElementById('bearerToken');
-    const tokenStatus = document.getElementById('tokenStatus');
-    const clearButton = document.getElementById('clearToken');
-
-    // Gérer la saisie du token
-    tokenInput.addEventListener('change', (e) => {
-        const token = e.target.value.trim();
-        if (TokenManager.store(token)) {
-            tokenStatus.textContent = 'Bearer Token enregistré ✓';
-            tokenStatus.className = 'token-status success';
-            SecurityLogger.log('Token enregistré avec succès');
-        } else {
-            tokenStatus.textContent = 'Token invalide ✗';
-            tokenStatus.className = 'token-status error';
-            SecurityLogger.warn('Token invalide');
-        }
-    });
-
-    // Gérer le bouton d'effacement
-    clearButton.addEventListener('click', () => {
-        tokenInput.value = '';
-        TokenManager.clear();
-        tokenStatus.textContent = 'Token effacé';
-        tokenStatus.className = 'token-status';
-        SecurityLogger.log('Token effacé');
-    });
-
-    // Restaurer le token s'il existe
-    const savedToken = TokenManager.get();
-    if (savedToken) {
-        tokenInput.value = savedToken;
-        tokenStatus.textContent = 'Bearer Token restauré ✓';
-        tokenStatus.className = 'token-status success';
-    }
-}
-
-// Ajouter l'appel dans le DOMContentLoaded
-// app.js
-document.addEventListener('DOMContentLoaded', () => {
-    // Vérifions que tous les éléments existent avant d'initialiser
-    const tokenInput = document.getElementById('bearerToken');
-    const tokenStatus = document.getElementById('tokenStatus');
-    const clearButton = document.getElementById('clearToken');
-    
-    if (!tokenInput || !tokenStatus || !clearButton) {
-        console.error('Éléments du token non trouvés dans le DOM');
+    // Vérifier si nous avons des données valides
+    if (!cleanedData || !cleanedData.data) {
+        console.error("❌ Données invalides:", cleanedData);
         return;
     }
 
-    // Fonction d'initialisation du token
-    function initializeTokenInput() {
-        // Gérer la saisie du token
-        tokenInput.addEventListener('change', (e) => {
-            const token = e.target.value.trim();
-            if (TokenManager.store(token)) {
-                tokenStatus.textContent = 'Bearer Token enregistré ✓';
-                tokenStatus.className = 'token-status success';
-                SecurityLogger.log('Token enregistré avec succès');
-            } else {
-                tokenStatus.textContent = 'Token invalide ✗';
-                tokenStatus.className = 'token-status error';
-                SecurityLogger.warn('Token invalide');
+    // Créer le tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'custom-tooltip';
+    
+    // Ajouter le header au tooltip
+    const tooltipHeader = document.createElement('div');
+    tooltipHeader.className = 'tooltip-header';
+    tooltipHeader.textContent = 'Analyse LLM';
+    tooltip.appendChild(tooltipHeader);
+    
+    // Ajouter l'analyse au tooltip
+    const analysisContent = document.createElement('div');
+    analysisContent.className = 'tooltip-content';
+    analysisContent.textContent = cleanedData.analysis || 'Aucune analyse disponible';
+    tooltip.appendChild(analysisContent);
+    
+    // Ajouter le tooltip à la ligne
+    tr.appendChild(tooltip);
+    
+    // Vérifier et créer les cellules
+    if (Array.isArray(cleanedData.data)) {
+        cleanedData.data.forEach(cell => {
+            if (cell && typeof cell === 'object') {
+                const td = document.createElement('td');
+                td.textContent = cell.value || '-';
+                
+                // Application du style basé sur la confiance
+                const confidenceClass = getConfidenceClass(cell.confidence);
+                td.className = `confidence-cell ${confidenceClass}`;
+                
+                // Ajouter l'info-bulle de base
+                td.title = `Confiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
+                
+                tr.appendChild(td);
             }
         });
-
-        // Gérer le bouton d'effacement
-        clearButton.addEventListener('click', () => {
-            tokenInput.value = '';
-            TokenManager.clear();
-            tokenStatus.textContent = 'Token effacé';
-            tokenStatus.className = 'token-status';
-            SecurityLogger.log('Token effacé');
-        });
-
-        // Restaurer le token s'il existe
-        const savedToken = TokenManager.get();
-        if (savedToken) {
-            tokenInput.value = savedToken;
-            tokenStatus.textContent = 'Bearer Token restauré ✓';
-            tokenStatus.className = 'token-status success';
-        }
+    } else {
+        console.error("❌ Format de données incorrect:", cleanedData);
+        return;
     }
+    
+    tbody.appendChild(tr);
 
-    // Initialiser dans cet ordre
-    initializeTokenInput();
-    initializeDropZone();
-    initializeCleanButton();
-});
+    // Gestion de la position du tooltip
+    tr.addEventListener('mousemove', (e) => {
+        const rect = tr.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        
+        tooltip.style.left = `${e.clientX + 20}px`;
+        tooltip.style.top = `${e.clientY + scrollTop - rect.top}px`;
+        
+        // Empêcher le tooltip de sortir de l'écran
+        const tooltipRect = tooltip.getBoundingClientRect();
+        if (tooltipRect.right > window.innerWidth) {
+            tooltip.style.left = `${window.innerWidth - tooltipRect.width - 20}px`;
+        }
+        if (tooltipRect.bottom > window.innerHeight) {
+            tooltip.style.top = `${window.innerHeight - tooltipRect.height - 20}px`;
+        }
+    });
+}
+
+// Fonction utilitaire pour déterminer la classe de confiance
+function getConfidenceClass(confidence) {
+    if (typeof confidence !== 'number') return 'confidence-error';
+    if (confidence >= 0.8) return 'confidence-high';
+    if (confidence >= 0.4) return 'confidence-medium';
+    return 'confidence-low';
+}
+
+
+function displayErrorRow(row, tbody) {
+    const tr = document.createElement('tr');
+    row.forEach(cell => {
+        const td = document.createElement('td');
+        td.textContent = cell || '-';
+        td.className = 'confidence-cell confidence-error';
+        td.title = 'Erreur de traitement';
+        tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+}
+
+function showError(message) {
+    alert(message);
+}
