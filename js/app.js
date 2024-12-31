@@ -40,7 +40,7 @@ function initializeDropZone() {
     const fileInput = document.getElementById('fileInput');
 
     dropZone.addEventListener('click', () => fileInput.click());
-    
+
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('drag-over');
@@ -70,10 +70,10 @@ function initializeCleanButton() {
 }
 
 async function handleFile(file) {
-    SecurityLogger.log('Tentative de chargement de fichier', { 
-        name: file.name, 
-        size: file.size, 
-        type: file.type 
+    SecurityLogger.log('Tentative de chargement de fichier', {
+        name: file.name,
+        size: file.size,
+        type: file.type
     });
 
     try {
@@ -135,9 +135,9 @@ function parseCSV(content) {
             return;
         }
 
-        SecurityLogger.log('Parsing CSV réussi', { 
+        SecurityLogger.log('Parsing CSV réussi', {
             rowCount: state.rows.length,
-            headerCount: state.headers.length 
+            headerCount: state.headers.length
         });
 
         document.getElementById('cleanButton').disabled = false;
@@ -187,50 +187,51 @@ function displaySourceTable() {
 function displayCleanedRow(cleanedData, tbody, originalRow) {
     const tr = document.createElement('tr');
     
-    // Créer le tooltip une seule fois et l'attacher au body
+    // Créer le tooltip pour l'analyse
     const tooltip = document.createElement('div');
     tooltip.className = 'custom-tooltip';
     document.body.appendChild(tooltip);
     
-    // Ajouter le header au tooltip
-    const tooltipHeader = document.createElement('div');
-    tooltipHeader.className = 'tooltip-header';
-    tooltipHeader.textContent = 'Analyse LLM';
-    tooltip.appendChild(tooltipHeader);
-    
-    // Ajouter l'analyse au tooltip
-    const analysisContent = document.createElement('div');
-    analysisContent.className = 'tooltip-content';
-    analysisContent.textContent = cleanedData.analysis || 'Aucune analyse disponible';
-    tooltip.appendChild(analysisContent);
-    
-    // Créer les cellules
-    if (Array.isArray(cleanedData.data)) {
-        cleanedData.data.forEach((cell, index) => {
-            if (cell && typeof cell === 'object') {
-                const td = document.createElement('td');
-                td.textContent = cell.value || '-';
-                
-                // Classes de base
-                const classes = ['confidence-cell'];
-                
-                // Ajouter la classe de confiance
-                classes.push(getConfidenceClass(cell.confidence));
-                
-                // Vérifier si la valeur a été modifiée
-                const originalValue = originalRow[index];
-                if (originalValue !== cell.value) {
-                    classes.push('cell-modified');
-                    td.title = `Original: "${originalValue}"\nConfiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
-                } else {
-                    td.title = `Confiance: ${(cell.confidence * 100).toFixed(1)}%\nNotes: ${cell.notes}`;
-                }
-                
-                td.className = classes.join(' ');
-                tr.appendChild(td);
+    //tooltip.innerHTML = `
+    //    <div class="tooltip-content">
+    //        ${marked.parse(cleanedData.analysis)}
+    //    </div>
+    //`;
+
+    // Créer les cellules dans l'ordre des headers originaux
+    state.headers.forEach((header, index) => {
+        const td = document.createElement('td');
+        
+        // Trouver la donnée correspondante dans cleanedData
+        const cellData = cleanedData.data.find(item => item.field === header);
+        
+        if (cellData) {
+            // Si on a une valeur valide
+            td.textContent = cellData.value || '-';
+            
+            // Classes de confiance
+            const classes = ['confidence-cell'];
+            classes.push(getConfidenceClass(cellData.confidence));
+            
+            // Vérifier si la valeur a été modifiée
+            const originalValue = originalRow[index];
+            if (originalValue !== cellData.value) {
+                classes.push('cell-modified');
+                td.title = `Original: "${originalValue}"\nConfiance: ${(cellData.confidence * 100).toFixed(1)}%\nNotes: ${cellData.notes}`;
+            } else {
+                td.title = `Confiance: ${(cellData.confidence * 100).toFixed(1)}%\nNotes: ${cellData.notes}`;
             }
-        });
-    }
+            
+            td.className = classes.join(' ');
+        } else {
+            // Si pas de donnée, afficher un tiret
+            td.textContent = '-';
+            td.className = 'confidence-cell confidence-error';
+            td.title = 'Donnée manquante ou invalide';
+        }
+        
+        tr.appendChild(td);
+    });
     
     tbody.appendChild(tr);
 
@@ -260,7 +261,7 @@ function displayCleanedRow(cleanedData, tbody, originalRow) {
 
         let top = mouseY + 20;
         if (top + tooltipHeight > windowHeight - 20) {
-            top = mouseY - tooltipHeight - 20;
+            top = windowHeight - tooltipHeight - 20;
         }
 
         tooltip.style.left = `${Math.max(20, left)}px`;
@@ -298,11 +299,14 @@ async function handleCleanData() {
             const result = await dragonflyAPI.processFullRow(row, state.headers);
             console.log("✨ Résultat obtenu:", result);
             
-            if (result && result.success) {
-                displayCleanedRow(result, tbody, row);  // Passage de la ligne originale
+            if (result.success && Array.isArray(result.cleanedData)) {
+                displayCleanedRow({
+                    data: result.cleanedData,
+                    analysis: result.analysis
+                }, tbody, row);
                 state.cleanedRows.push(result);
             } else {
-                console.error("❌ Erreur sur la ligne:", result);
+                console.error("❌ Erreur sur la ligne:", result.error);
                 displayErrorRow(row, tbody);
             }
         }
@@ -317,10 +321,22 @@ async function handleCleanData() {
 
 // Fonction utilitaire pour déterminer la classe de confiance
 function getConfidenceClass(confidence) {
-    if (typeof confidence !== 'number') return 'confidence-error';
-    if (confidence >= 0.8) return 'confidence-high';
-    if (confidence >= 0.4) return 'confidence-medium';
-    return 'confidence-low';
+    if (typeof confidence !== 'number') return 'confidence-25';
+    
+    // Convertir en pourcentage pour plus de clarté
+    const confidencePercent = confidence * 100;
+    
+    if (confidencePercent >= 90) {
+        return 'confidence-100';
+    } else if (confidencePercent >= 85) {
+        return 'confidence-90';
+    } else if (confidencePercent >= 50) {
+        return 'confidence-85';
+    } else if (confidencePercent >= 25) {
+        return 'confidence-50';
+    } else {
+        return 'confidence-25';
+    }
 }
 
 

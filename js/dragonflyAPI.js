@@ -44,25 +44,31 @@ class DragonflyAPI {
     }
 
     async processFullRow(row, headers) {
-        console.log("🚀 Traitement ligne complète:", { row, headers });
         try {
+            console.log("🚀 Début traitement ligne:", row);
             const context = this.buildRowContext(row, headers);
-            console.log("📝 Contexte construit:", context);
             
             const prompt = this.buildFullRowPrompt(context);
-            console.log("📋 Prompt généré");
             
             const response = await this.processRow({
                 prompt: prompt,
                 fullRow: row
             });
-            console.log("✨ Réponse API reçue:", response);
-
+            console.log("✨ Réponse API brute:", response);
+    
+            if (!response || !response.choices || !response.choices[0]) {
+                throw new Error('Réponse API invalide');
+            }
+    
             const result = await this.parseFullRowResponse(response);
             console.log("✅ Résultat final:", result);
             return result;
         } catch (error) {
             console.error("❌ Erreur dans processFullRow:", error);
+            console.error("Détails de l'erreur:", {
+                message: error.message,
+                stack: error.stack
+            });
             return this.generateErrorResponse(row, headers);
         }
     }
@@ -97,19 +103,23 @@ Instructions:
 
 1. Analyze each row in the dataset as a whole, considering the context and relationships between cells.
 
-2. Before processing individual cells, wrap your analysis in <row_analysis> tags. In this analysis:
-   - List out the content of each cell in the row.
-   - Identify the cell type (e.g., Civilité, Prénom, Nom, etc.) for each cell and its corresponding cleaning rules.
-   - Note any inconsistencies or potential data quality issues within the row.
-   - Identify any relationships between fields (e.g., email and name) that might inform your decisions.
-   - If any name or full name fields are empty, plan how to reconstruct them using available information.
+
+2. For each row, create a <row_analysis> block containing:
+- Content of each cell in the row
+- Cell type (Title, First Name, Last Name, etc.) and associated cleaning rules
+- Inconsistencies or potential data quality issues
+- Relationships between fields (e.g., email and name)
+- Reconstruction plan if fields are missing
 
 3. Apply the following cleaning rules based on the cell type:
 
    a. Civilité (Title):
-      - Use other fields (first name, last name, full name or email) in the row to infer the correct title and avoid error
-      - Normalize to "Madame" or "Monsieur"
-
+      - Normalize to "Madame" for female first name and "Monsieur" for male first name.   
+      - Cross-verification with:
+        - Email prefix
+        - Full name
+        - Gender indicators in all fields
+      
    b. Prénom (First Name):
       - Capitalize the first letter
       - Remove extra spaces
@@ -131,6 +141,7 @@ Instructions:
       - Capitalize the first letter of each word
       - Standardize common titles (e.g., "Directeur" vs "Dir.")
       - Remove unnecessary details or duplications
+      - Remove all text between parentheses, including the parentheses themselves
 
    f. E-mail:
       - Ensure it's a valid email format
@@ -150,19 +161,42 @@ Instructions:
 
 5. Generate a confidence score for your correction (0.0 to 1.0).
 
-6. For each cell, output a JSON object with the following structure:
+6.  For each cell, create a JSON object with the following structure:
 
    {
+     "field": "Field Name",
      "value": "normalized_value",
      "confidence": 0.0 to 1.0,
      "notes": "Brief explanation of the correction or standardization"
    }
 
+   Important: 
+   - Do not create JSON objects for empty fields or fields with no clear purpose.
+   - Always standardize formats as specified in the cleaning rules, even if the original format is understandable.
+   - If a field cannot be normalized or reconstructed, set its value to null and explain why in the notes.
+   - Do not surround the JSON with additional quotes, code tags like 3 backticks json or any other extra characters or text. 
+   - Do not enclose the value like numbers or name in quotes in the JSON object.
+   - Do not include comments within the JSON objects. All explanations should be in the "notes" field.
+
 7. Maintain consistency across the dataset, especially for recurring values like organization names or job titles.
 
 8. If multiple interpretations are possible, choose the most likely option based on the context.
 
-Output your results as a JSON array containing objects for each cell in the row. Here's an example of the structure (with generic content):
+<row_analysis>
+1. Content 1: [Content]
+   Type: [Cell Type]
+   Issues: [Any inconsistencies or quality issues]
+   Relationships: [Any relationships with other fields]
+   Cleaning Rules: [List rules]
+
+2. Content 2: [Content]
+   Type: [Cell Type]
+   Issues: [Any inconsistencies or quality issues]
+   Relationships: [Any relationships with other fields]
+   Cleaning Rules: [List rules]
+
+[Continue for all cells in the row]
+</row_analysis>
 
 [
   {
@@ -177,11 +211,10 @@ Output your results as a JSON array containing objects for each cell in the row.
     "confidence": 0.0,
     "notes": "Explanation"
   },
-  // ... (continue for all fields)
+  // ... (continue for all fields in the row)
 ]
 
 Remember to use your <row_analysis> section to show your thought process before providing the final JSON output.
-
 `;
     }
 
@@ -275,47 +308,66 @@ Remember to use your <row_analysis> section to show your thought process before 
     async parseFullRowResponse(response) {
         try {
             const content = response.choices[0].message.content;
-            console.log("📄 Contenu brut reçu:", content);
             
-            // Extraction simple du JSON entre ```json et ```
-            const jsonMatch = content.match(/```json\s*(\[[\s\S]*?\])\s*```/);
+            // Chercher le dernier tableau JSON
+            const jsonRegex = /\[\s*{[\s\S]*?\]\s*$/;
+            const jsonMatch = content.match(jsonRegex);
+    
             if (!jsonMatch) {
-                console.error("❌ Pas de JSON trouvé");
+                console.error("❌ Aucun bloc JSON trouvé");
                 return { success: false, error: 'JSON introuvable' };
             }
     
-            // Nettoyage basique du JSON
-            let jsonStr = jsonMatch[1]
-                .replace(/[""]/g, '"')  // Remplace les guillemets intelligents
-                .replace(/'/g, "'")     // Normalise les apostrophes
-                .replace(/\/\/.*$/gm, '') // Supprime les commentaires inline
-                .replace(/,(\s*[}\]])/g, '$1'); // Supprime les virgules trailing
-    
             try {
+                // Nettoyer le JSON avant parsing
+                let jsonStr = jsonMatch[0]
+                    // Supprimer les commentaires inline avec leur contenu
+                    .replace(/,?\s*\/\/.*$/gm, '');
+            
+                // Parser puis re-stringify pour un formatage propre
+                let tempData = JSON.parse(jsonStr);
+                jsonStr = JSON.stringify(tempData, null, 2);
+            
+                console.log("🔍 JSON nettoyé:", jsonStr);
+            
                 const data = JSON.parse(jsonStr);
-                console.log("✅ Parsing JSON réussi:", data);
                 
-                // Extraction simple de l'analyse
-                const analysis = content.split('```json')[0]
-                    .replace(/<row_analysis>/, '')
-                    .replace(/<\/row_analysis>/, '')
-                    .trim();
+                // Filtrer les entrées invalides
+                const cleanedData = data
+                    .filter(item => 
+                        item &&
+                        typeof item === 'object' &&
+                        item.field?.trim() &&
+                        (item.value === 'null' || item.value?.trim()) &&
+                        typeof item.confidence === 'number' &&
+                        item.confidence >= 0 &&
+                        item.confidence <= 1
+                    )
+                    .map(item => ({
+                        field: item.field.trim(),
+                        value: item.value === 'null' ? null : item.value.trim(),
+                        confidence: item.confidence,
+                        notes: item.notes.trim()
+                    }));
+    
+                // Extraction de l'analyse
+                const analysisMatch = content.match(/<row_analysis>([\s\S]*?)<\/row_analysis>/);
+                const analysis = analysisMatch ? analysisMatch[1].trim() : '';
     
                 return {
                     success: true,
-                    data,
+                    cleanedData,
                     analysis
                 };
     
-            } catch (parseError) {
-                console.error("❌ Erreur parsing JSON:", parseError);
+            } catch (jsonError) {
+                console.error("❌ Erreur parsing JSON:", jsonError);
                 console.log("JSON problématique:", jsonStr);
                 return { 
                     success: false, 
-                    error: parseError.message 
+                    error: jsonError.message 
                 };
             }
-    
         } catch (error) {
             console.error("❌ Erreur générale:", error);
             return { 

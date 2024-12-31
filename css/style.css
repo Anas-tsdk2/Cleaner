@@ -7,13 +7,12 @@
     --error-color: #f44336;
     --success-color: #4CAF50;
 
-    /* Nouvelles variables pour les niveaux de confiance */
-    --confidence-high-bg: rgba(76, 175, 80, 0.1);
-    --confidence-high-border: rgba(76, 175, 80, 0.3);
-    --confidence-medium-bg: rgba(255, 152, 0, 0.1);
-    --confidence-medium-border: rgba(255, 152, 0, 0.3);
-    --confidence-low-bg: rgba(244, 67, 54, 0.1);
-    --confidence-low-border: rgba(244, 67, 54, 0.3);
+    /* Couleurs de confiance */
+    --confidence-100-90: rgba(76, 175, 80, 0.2);  /* Vert */
+    --confidence-90-85: rgba(139, 195, 74, 0.2);  /* Vert-jaune */
+    --confidence-85-50: rgba(255, 152, 0, 0.2);   /* Orange */
+    --confidence-50-25: rgba(255, 87, 34, 0.2);   /* Orange-rouge */
+    --confidence-25-0: rgba(244, 67, 54, 0.2);    /* Rouge */
 }
 
 /* Reset basique */
@@ -117,7 +116,7 @@ h1 {
     width: 98%;
 }
 
-/* Styles des tableaux */
+/* Container des tableaux */
 .table-container {
     width: 100%;
     overflow-x: auto;
@@ -163,41 +162,94 @@ tr:nth-child(even) {
 }
 
 /* Niveaux de confiance avec dégradés */
-.confidence-high {
-    background-color: var(--confidence-high-bg);
-    border-left: 3px solid var(--confidence-high-border);
+.confidence-100 {
+    background-color: var(--confidence-100-90);
+    border-left: 3px solid rgba(76, 175, 80, 0.8);
 }
 
-.confidence-medium {
-    background-color: var(--confidence-medium-bg);
-    border-left: 3px solid var(--confidence-medium-border);
+.confidence-90 {
+    background-color: var(--confidence-90-85);
+    border-left: 3px solid rgba(139, 195, 74, 0.8);
 }
 
-.confidence-low {
-    background-color: var(--confidence-low-bg);
-    border-left: 3px solid var(--confidence-low-border);
+.confidence-85 {
+    background-color: var(--confidence-85-50);
+    border-left: 3px solid rgba(255, 152, 0, 0.8);
 }
 
-/* Dégradés fins pour les niveaux de confiance */
-.confidence-0 { background-color: rgba(244, 67, 54, 0.3); }
-.confidence-1 { background-color: rgba(244, 67, 54, 0.2); }
-.confidence-2 { background-color: rgba(244, 67, 54, 0.1); }
-.confidence-3 { background-color: rgba(255, 152, 0, 0.3); }
-.confidence-4 { background-color: rgba(255, 152, 0, 0.2); }
-.confidence-5 { background-color: rgba(255, 152, 0, 0.1); }
-.confidence-6 { background-color: rgba(76, 175, 80, 0.1); }
-.confidence-7 { background-color: rgba(76, 175, 80, 0.2); }
-.confidence-8 { background-color: rgba(76, 175, 80, 0.3); }
-
-/* Style pour les erreurs */
-.confidence-error {
-    background-color: rgba(244, 67, 54, 0.05);
-    border-left: 3px solid var(--error-color);
+.confidence-50 {
+    background-color: var(--confidence-50-25);
+    border-left: 3px solid rgba(255, 87, 34, 0.8);
 }
 
-/* Infobulles */
-.confidence-cell[title] {
-    cursor: help;
+.confidence-25 {
+    background-color: var(--confidence-25-0);
+    border-left: 3px solid rgba(244, 67, 54, 0.8);
+}
+
+/* Cellules modifiées */
+.cell-modified {
+    font-weight: bold;
+}
+
+/* Tooltip personnalisé */
+.custom-tooltip {
+    position: fixed;
+    max-width: 800px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+    max-height: 80vh;
+    pointer-events: none;
+}
+
+/* Contenu du tooltip */
+.tooltip-content {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.tooltip-content h1, 
+.tooltip-content h2, 
+.tooltip-content h3 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    color: #333;
+}
+
+.tooltip-content ul, 
+.tooltip-content ol {
+    padding-left: 20px;
+    margin: 0.5em 0;
+}
+
+.tooltip-content code {
+    background: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.tooltip-content pre {
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+.tooltip-content p {
+    margin: 0.5em 0;
+}
+
+.tooltip-content strong {
+    color: #2196F3;
 }
 
 /* Styles token */
@@ -292,49 +344,4 @@ tr:nth-child(even) {
         padding: 8px;
         font-size: 13px;
     }
-}
-
-/* Ajouter dans style.css */
-.custom-tooltip {
-    position: fixed; /* Changed from absolute to fixed */
-    max-width: 600px;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-    z-index: 1000;
-    display: none;
-    white-space: pre-wrap;
-    font-family: monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    overflow-y: auto;
-    max-height: 80vh;
-    pointer-events: none; /* Pour éviter les problèmes de hover */
-}
-
-/* Supprimer le hover automatique et utiliser JavaScript à la place */
-tr:hover .custom-tooltip {
-    display: none;
-}
-
-/* Style pour la ligne active */
-#resultTable tbody tr.active-row {
-    background-color: rgba(33, 150, 243, 0.05);
-}
-
-/* Ajouter dans style.css */
-.cell-modified {
-    font-weight: bold;
-    position: relative;
-}
-
-.cell-modified::after {
-    content: '•'; /* Petit point pour indiquer la modification */
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    font-size: 12px;
-    color: var(--primary-color);
 }
