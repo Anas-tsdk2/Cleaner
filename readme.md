@@ -24,7 +24,7 @@ Cora's CSV Cleaner est une application web standalone permettant de nettoyer et 
 
 ### 1. Cloner le repository
 ```bash
-git clone https://github.com/chrlesur/csv-cleaner.git
+git clone https://github.com/chrlesur/CORA
 cd csv-cleaner
 ```
 
