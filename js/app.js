@@ -192,11 +192,11 @@ function displayCleanedRow(cleanedData, tbody, originalRow) {
     tooltip.className = 'custom-tooltip';
     document.body.appendChild(tooltip);
     
-    //tooltip.innerHTML = `
-    //    <div class="tooltip-content">
-    //        ${marked.parse(cleanedData.analysis)}
-    //    </div>
-    //`;
+    tooltip.innerHTML = `
+       <div class="tooltip-content">
+           ${marked.parse(cleanedData.analysis)}
+        </div>
+    `;
 
     // Créer les cellules dans l'ordre des headers originaux
     state.headers.forEach((header, index) => {

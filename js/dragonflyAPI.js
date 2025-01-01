@@ -186,14 +186,10 @@ Instructions:
 1. Content 1: [Content]
    Type: [Cell Type]
    Issues: [Any inconsistencies or quality issues]
-   Relationships: [Any relationships with other fields]
-   Cleaning Rules: [List rules]
 
 2. Content 2: [Content]
    Type: [Cell Type]
    Issues: [Any inconsistencies or quality issues]
-   Relationships: [Any relationships with other fields]
-   Cleaning Rules: [List rules]
 
 [Continue for all cells in the row]
 </row_analysis>
