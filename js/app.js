@@ -10,6 +10,7 @@ const ERROR_MESSAGES = {
     parseError: 'Erreur lors de la lecture du fichier CSV.'
 };
 
+
 // État de l'application
 const state = {
     currentFile: null,
@@ -19,8 +20,6 @@ const state = {
 };
 
 let dragonflyAPI;
-
-
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', () => {
@@ -184,90 +183,206 @@ function displaySourceTable() {
     table.appendChild(tbody);
 }
 
-function displayCleanedRow(cleanedData, tbody, originalRow) {
+
+// Tableau de correspondance avec accents
+const FIELD_MAPPING = {
+    'civilité': 'civility',
+    'prénom': 'firstname',
+    'nom': 'lastname',
+    'nom complet': 'fullname',
+    'fonction': 'jobtitle',
+    'e-mail': 'email',
+    'organisation': 'organization',
+    'numéro de téléphone': 'phonenumber'
+};
+
+function displayCleanedRow(result, tbody, originalRow) {
+    console.log("=== DÉBUT AFFICHAGE LIGNE NETTOYÉE ===");
+    console.log("📊 Données reçues:", result);
+    
     const tr = document.createElement('tr');
     
-    // Créer le tooltip pour l'analyse
-    const tooltip = document.createElement('div');
-    tooltip.className = 'custom-tooltip';
-    document.body.appendChild(tooltip);
-    
-    tooltip.innerHTML = `
-       <div class="tooltip-content">
-           ${marked.parse(cleanedData.analysis)}
-        </div>
-    `;
+    // Vérifier et normaliser le format des données
+    let cleanedData;
+    if (result.cleanedData) {
+        cleanedData = result.cleanedData;
+    } else if (result.data) {
+        cleanedData = result.data;
+    } else {
+        console.error('❌ Format de données incorrect:', result);
+        displayErrorRow(originalRow, tbody);
+        return;
+    }
 
-    // Créer les cellules dans l'ordre des headers originaux
-    state.headers.forEach((header, index) => {
+    console.log("📋 Données nettoyées à traiter:", cleanedData);
+
+    // On parcourt les headers pour maintenir l'ordre des colonnes
+    state.headers.forEach(header => {
+        console.log(`\n🔍 Traitement header: "${header}"`);
+        
         const td = document.createElement('td');
         
-        // Trouver la donnée correspondante dans cleanedData
-        const cellData = cleanedData.data.find(item => item.field === header);
-        
-        if (cellData) {
-            // Si on a une valeur valide
-            td.textContent = cellData.value || '-';
+        // Conversion du header en anglais pour la recherche
+        const englishField = FIELD_MAPPING[header.toLowerCase()];
+        console.log(`  🔄 Conversion header: ${header} -> ${englishField}`);
+
+        // On cherche l'élément correspondant dans les données nettoyées
+        const fieldData = cleanedData.find(item => {
+            const match = item.field.toLowerCase() === englishField;
+            console.log(`  - Comparaison: ${item.field.toLowerCase()} avec ${englishField} => ${match}`);
+            return match;
+        });
+
+        if (fieldData) {
+            console.log(`  ✅ Données trouvées pour ${header}:`, fieldData);
             
-            // Classes de confiance
-            const classes = ['confidence-cell'];
-            classes.push(getConfidenceClass(cellData.confidence));
+            td.textContent = fieldData.value || '-';
             
-            // Vérifier si la valeur a été modifiée
-            const originalValue = originalRow[index];
-            if (originalValue !== cellData.value) {
-                classes.push('cell-modified');
-                td.title = `Original: "${originalValue}"\nConfiance: ${(cellData.confidence * 100).toFixed(1)}%\nNotes: ${cellData.notes}`;
-            } else {
-                td.title = `Confiance: ${(cellData.confidence * 100).toFixed(1)}%\nNotes: ${cellData.notes}`;
+            // La confiance est déjà un nombre décimal
+            const confidence = fieldData.confidence;
+            console.log(`  📊 Confiance: ${confidence}`);
+            
+            const confidenceClass = getConfidenceClass(confidence);
+            console.log(`  🎨 Classe de confiance: ${confidenceClass}`);
+            
+            td.className = `confidence-cell ${confidenceClass}`;
+
+            // Si la valeur a été modifiée
+            const originalValue = originalRow[state.headers.indexOf(header)];
+            if (originalValue !== fieldData.value) {
+                td.classList.add('cell-modified');
+                console.log(`  🔄 Valeur modifiée: "${originalValue}" -> "${fieldData.value}"`);
             }
-            
-            td.className = classes.join(' ');
+
+            // Ajouter les événements pour le tooltip
+            td.style.cursor = 'pointer';
+            td.addEventListener('mouseenter', (event) => {
+                clearTimeout(td.tooltipTimer);
+                td.tooltipTimer = setTimeout(() => {
+                    showDetails(event, fieldData);
+                }, 50);
+            });
+
+            td.addEventListener('mouseleave', () => {
+                clearTimeout(td.tooltipTimer);
+                const tooltip = document.querySelector('.custom-tooltip');
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                }
+            });
+
         } else {
-            // Si pas de donnée, afficher un tiret
+            console.log(`  ❌ Aucune donnée trouvée pour ${header}`);
             td.textContent = '-';
             td.className = 'confidence-cell confidence-error';
-            td.title = 'Donnée manquante ou invalide';
         }
-        
+
         tr.appendChild(td);
     });
     
     tbody.appendChild(tr);
-
-    // Gestion des événements pour le tooltip
-    tr.addEventListener('mouseenter', () => {
-        tooltip.style.display = 'block';
-        tr.classList.add('active-row');
-    });
-
-    tr.addEventListener('mouseleave', () => {
-        tooltip.style.display = 'none';
-        tr.classList.remove('active-row');
-    });
-
-    tr.addEventListener('mousemove', (e) => {
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        const tooltipWidth = tooltip.offsetWidth;
-        const tooltipHeight = tooltip.offsetHeight;
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-
-        let left = mouseX + 20;
-        if (left + tooltipWidth > windowWidth - 20) {
-            left = mouseX - tooltipWidth - 20;
-        }
-
-        let top = mouseY + 20;
-        if (top + tooltipHeight > windowHeight - 20) {
-            top = windowHeight - tooltipHeight - 20;
-        }
-
-        tooltip.style.left = `${Math.max(20, left)}px`;
-        tooltip.style.top = `${Math.max(20, top)}px`;
-    });
+    console.log("=== FIN AFFICHAGE LIGNE NETTOYÉE ===\n");
 }
+
+
+async function handleCleanData() {
+    console.log("🚀 DÉBUT DU NETTOYAGE DES DONNÉES");
+    const cleanButton = document.getElementById('cleanButton');
+    cleanButton.disabled = true;
+
+    try {
+        state.cleanedRows = [];
+        const resultTable = document.getElementById('resultTable');
+        resultTable.innerHTML = '';
+
+        console.log("📋 Headers actuels:", state.headers);
+
+        // Création de l'en-tête
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        state.headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        resultTable.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        resultTable.appendChild(tbody);
+
+        // Traitement de chaque ligne
+        for (const row of state.rows) {
+            console.log("\n=== TRAITEMENT NOUVELLE LIGNE ===");
+            console.log("📄 Ligne originale:", row);
+            
+            const result = await dragonflyAPI.processFullRow(row, state.headers);
+            console.log("✨ Résultat API:", result);
+            
+            displayCleanedRow(result, tbody, row);
+            
+            if (result.success) {
+                state.cleanedRows.push(result);
+                console.log("✅ Ligne traitée avec succès");
+            } else {
+                console.log("❌ Échec du traitement de la ligne");
+            }
+        }
+
+    } catch (error) {
+        console.error('💥 Erreur pendant le nettoyage:', error);
+        alert('Une erreur est survenue pendant le nettoyage');
+    } finally {
+        cleanButton.disabled = false;
+        console.log("🏁 FIN DU NETTOYAGE DES DONNÉES\n");
+    }
+}
+
+
+// Modification de la fonction handleCleanData pour passer le résultat directement
+async function handleCleanData() {
+    const cleanButton = document.getElementById('cleanButton');
+    cleanButton.disabled = true;
+
+    try {
+        state.cleanedRows = [];
+        const resultTable = document.getElementById('resultTable');
+        resultTable.innerHTML = '';
+
+        // Création de l'en-tête
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        state.headers.forEach(header => {
+            const th = document.createElement('th');
+            th.textContent = header;
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        resultTable.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        resultTable.appendChild(tbody);
+
+        // Traitement de chaque ligne
+        for (const row of state.rows) {
+            console.log("🔄 Traitement de la ligne:", row);
+            const result = await dragonflyAPI.processFullRow(row, state.headers);
+            console.log("✨ Résultat obtenu:", result);
+            
+            displayCleanedRow(result, tbody, row);
+            if (result.success) {
+                state.cleanedRows.push(result);
+            }
+        }
+
+    } catch (error) {
+        console.error('Erreur pendant le nettoyage:', error);
+        alert('Une erreur est survenue pendant le nettoyage');
+    } finally {
+        cleanButton.disabled = false;
+    }
+}
+
 
 // Modifier aussi handleCleanData pour passer la ligne originale
 async function handleCleanData() {
@@ -354,4 +469,85 @@ function displayErrorRow(row, tbody) {
 
 function showError(message) {
     alert(message);
+}
+
+function showDetails(event, fieldData) {
+    const tooltip = document.querySelector('.custom-tooltip') || createTooltip();
+    
+    const markdown = `
+# Détails du champ ${fieldData.field}
+
+## Valeur
+${fieldData.value}
+
+## Confiance
+${(fieldData.confidence * 100).toFixed(1)}%
+
+## Notes de nettoyage
+${fieldData.notes}
+    `;
+    
+    tooltip.querySelector('.tooltip-content').innerHTML = marked.parse(markdown);
+    tooltip.style.display = 'block'; // Afficher pour obtenir les dimensions
+
+    // Récupérer les dimensions
+    const rect = event.target.getBoundingClientRect();
+    const tooltipHeight = tooltip.offsetHeight;
+    const tooltipWidth = tooltip.offsetWidth;
+    
+    // Calcul initial des positions
+    let top, left;
+    const margin = 10; // Marge de sécurité
+
+    // Déterminer la position verticale
+    if (rect.bottom + tooltipHeight + margin > window.innerHeight) {
+        // Pas assez de place en bas, essayer au-dessus
+        top = rect.top - tooltipHeight - margin;
+        tooltip.classList.add('tooltip-top');
+        tooltip.classList.remove('tooltip-bottom');
+    } else {
+        // Assez de place en bas
+        top = rect.bottom + margin;
+        tooltip.classList.add('tooltip-bottom');
+        tooltip.classList.remove('tooltip-top');
+    }
+
+    // Si toujours pas de place en haut, centrer verticalement sur la cellule
+    if (top < margin) {
+        top = Math.max(margin, rect.top + (rect.height - tooltipHeight) / 2);
+        tooltip.classList.remove('tooltip-top', 'tooltip-bottom');
+    }
+
+    // Déterminer la position horizontale
+    if (rect.left + tooltipWidth + margin > window.innerWidth) {
+        // Pas assez de place à droite, aligner à droite de l'écran
+        left = window.innerWidth - tooltipWidth - margin;
+        tooltip.classList.add('tooltip-right');
+        tooltip.classList.remove('tooltip-left');
+    } else {
+        // Aligner avec la cellule
+        left = rect.left;
+        tooltip.classList.add('tooltip-left');
+        tooltip.classList.remove('tooltip-right');
+    }
+
+    // Appliquer les positions
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+}
+
+function createTooltip() {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'custom-tooltip';
+    tooltip.innerHTML = '<div class="tooltip-content"></div>';
+    document.body.appendChild(tooltip);
+    return tooltip;
+}
+
+function closeTooltipOnClickOutside(event) {
+    const tooltip = document.querySelector('.custom-tooltip');
+    if (tooltip && !tooltip.contains(event.target)) {
+        tooltip.style.display = 'none';
+        document.removeEventListener('click', closeTooltipOnClickOutside);
+    }
 }

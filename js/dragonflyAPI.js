@@ -91,126 +91,67 @@ class DragonflyAPI {
 
     buildFullRowPrompt(context) {
         return `
-You are an AI assistant specialized in data cleaning and normalization for CSV datasets containing personal and professional information. 
-Your task is to process each cell in the dataset, applying appropriate cleaning rules and standardizations.
+**Nettoyage & Normalisation de Données CSV**
 
-<data>
-${JSON.stringify(context, null, 2)}
-</data>
+* **Entrée** : ${JSON.stringify(context, null, 2)}
 
+* **Règles de Traitement Spécifiques (appliquées automatiquement)** :
+	### a. Civilité (Title)
+	+ Normaliser à "Madame" pour prénom féminin et "Monsieur" pour prénom masculin
+	+ Vérification croisée avec : préfixe E-mail, Nom complet, indicateurs de genre dans tous les champs
 
-Instructions:
+	### b. Prénom (First Name)
+	+ Mettre en majuscule la première lettre
+	+ Supprimer les espaces supplémentaires
+	+ Corriger les erreurs d'orthographe évidentes
+	+ Si vide, essayer de reconstruire à partir du Nom complet ou de l'E-mail
 
-1. Analyze each row in the dataset as a whole, considering the context and relationships between cells.
+	### c. Nom (Last Name)
+	+ Mettre en majuscule la première lettre
+	+ Supprimer les espaces supplémentaires
+	+ Corriger les erreurs d'orthographe évidentes
+	+ Si vide, essayer de reconstruire à partir du Nom complet ou de l'E-mail
 
+	### d. Nom Complet (Full Name)
+	+ S'assurer qu'il correspond à la combinaison de Prénom et Nom
+	+ Formatter comme "Prénom Nom"
+	+ Si vide, reconstruire à partir de Prénom et Nom, ou à partir de l'E-mail si possible
 
-2. For each row, create a <row_analysis> block containing:
-- Content of each cell in the row
-- Cell type (Title, First Name, Last Name, etc.) and associated cleaning rules
-- Inconsistencies or potential data quality issues
-- Relationships between fields (e.g., email and name)
-- Reconstruction plan if fields are missing
+	### e. Fonction (Job Title)
+	+ Mettre en majuscule la première lettre de chaque mot
+	+ Standardiser les titres courants (ex : "Directeur" au lieu de "Dir.")
+	+ Supprimer les détails inutiles ou les duplications
+	+ Supprimer tout texte entre parenthèses, y compris les parenthèses
 
-3. Apply the following cleaning rules based on the cell type:
+	### f. E-mail
+	+ S'assurer que c'est un format d'e-mail valide
+	+ Corriger les erreurs de domaine évidentes (ex : absence de .com ou .fr)
 
-   a. Civilité (Title):
-      - Normalize to "Madame" for female first name and "Monsieur" for male first name.   
-      - Cross-verification with:
-        - Email prefix
-        - Full name
-        - Gender indicators in all fields
-      
-   b. Prénom (First Name):
-      - Capitalize the first letter
-      - Remove extra spaces
-      - Correct obvious spelling errors
-      - If empty, attempt to reconstruct from Nom complet or E-mail
+	### g. Organisation
+	+ Mettre en majuscule la première lettre de chaque mot
+	+ Supprimer les espaces supplémentaires
+	+ Corriger les erreurs d'orthographe évidentes
 
-   c. Nom (Last Name):
-      - Capitalize the first letter
-      - Remove extra spaces
-      - Correct obvious spelling errors
-      - If empty, attempt to reconstruct from Nom complet or E-mail
+	### h. Numéro de Téléphone
+	+ Standardiser au format : 00 00 00 00 00
+	+ Supprimer les caractères non numériques
+	+ S'assurer qu'il s'agit d'un numéro de téléphone français valide (10 chiffres)
 
-   d. Nom complet (Full Name):
-      - Ensure it matches the combination of Prénom and Nom
-      - Format as "Prénom Nom"
-      - If empty, reconstruct from Prénom and Nom, or from E-mail if possible
-
-   e. Fonction (Job Title):
-      - Capitalize the first letter of each word
-      - Standardize common titles (e.g., "Directeur" vs "Dir.")
-      - Remove unnecessary details or duplications
-      - Remove all text between parentheses, including the parentheses themselves
-
-   f. E-mail:
-      - Ensure it's a valid email format
-      - Correct obvious domain errors (e.g., missing .com or .fr)
-
-   g. Organisation:
-      - Capitalize the first letter of each word
-      - Remove extra spaces
-      - Correct obvious spelling errors
-
-   h. Numéro de téléphone (Phone Number):
-      - Standardize to format: 00 00 00 00 00
-      - Remove any non-digit characters
-      - Ensure it's a valid French phone number (10 digits)
-
-4. Choose the most likely correction based on the context and cleaning rules.
-
-5. Generate a confidence score for your correction (0.0 to 1.0).
-
-6.  For each cell, create a JSON object with the following structure:
-
-   {
-     "field": "Field Name",
-     "value": "normalized_value",
-     "confidence": 0.0 to 1.0,
-     "notes": "Brief explanation of the correction or standardization"
-   }
-
-   Important: 
-    - Do not create JSON objects for empty fields or fields without a clear purpose.
-    - Always normalize formats as specified in the cleaning rules, even if the original format is understandable.
-    - If a field cannot be normalized or reconstructed, set its value to null and explain why in the notes.
-    - Do not surround the JSON value with additional quotes, code tags like 3 backticks json, or any other superfluous characters or text.
-    - Do not put values in quotes (e.g., numbers or names) in the JSON object.
-    - Do not add any comments in JSON objects. All explanations must be placed in the "notes" field.
-
-7. Maintain consistency across the dataset, especially for recurring values like organization names or job titles.
-
-8. If multiple interpretations are possible, choose the most likely option based on the context.
-
-<row_analysis>
-1. Content 1: [Content]
-   Type: [Cell Type]
-   Issues: [Any inconsistencies or quality issues]
-
-2. Content 2: [Content]
-   Type: [Cell Type]
-   Issues: [Any inconsistencies or quality issues]
-
-[Continue for all cells in the row]
-</row_analysis>
+**Tâche** :
+	1. Traitez l'exemple de données d'entrée ci-dessus en appliquant les règles spécifiques.
+    2. Ne pas inclure de remarques, d'explications ou de textes supplémentaires dans la réponse. Seul le JSON de sortie est requis.**
+	3. **Réponse attendue : UNIQUEMENT le JSON de Sortie résultant (exécutable par script)**  :
 
 [
-  {
-    "field": "Civilité",
-    "value": "normalized_value",
-    "confidence": 0.0,
-    "notes": "Explanation"
-  },
-  {
-    "field": "Prénom",
-    "value": "normalized_value",
-    "confidence": 0.0,
-    "notes": "Explanation"
-  },
-  // ... (continue for all fields in the row)
+  {"field": "Civility", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "FirstName", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "LastName", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "FullName", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "JobTitle", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "Email", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "Organization", "value": "...", "confidence": ..., "notes": "..."},
+  {"field": "PhoneNumber", "value": "...", "confidence": ..., "notes": "..."}
 ]
-
-Remember to use your <row_analysis> section to show your thought process before providing the final JSON output.
 `;
     }
 
@@ -302,73 +243,94 @@ Remember to use your <row_analysis> section to show your thought process before 
 
    
     async parseFullRowResponse(response) {
+        console.log("🔍 Début parseFullRowResponse avec:", response);
+        
         try {
-            const content = response.choices[0].message.content;
+            // Étape 1 : Extraire les données du format de réponse
+            let cleanedData;
             
-            // Chercher le dernier tableau JSON
-            const jsonRegex = /\[\s*{[\s\S]*?\]\s*$/;
-            const jsonMatch = content.match(jsonRegex);
-    
-            if (!jsonMatch) {
-                console.error("❌ Aucun bloc JSON trouvé");
-                return { success: false, error: 'JSON introuvable' };
-            }
-    
-            try {
-                // Nettoyer le JSON avant parsing
-                let jsonStr = jsonMatch[0]
-                    // Supprimer les commentaires inline avec leur contenu
-                    .replace(/,?\s*\/\/.*$/gm, '');
-            
-                // Parser puis re-stringify pour un formatage propre
-                let tempData = JSON.parse(jsonStr);
-                jsonStr = JSON.stringify(tempData, null, 2);
-            
-                console.log("🔍 JSON nettoyé:", jsonStr);
-            
-                const data = JSON.parse(jsonStr);
+            if (Array.isArray(response)) {
+                cleanedData = response;
+            } else if (typeof response === 'string') {
+                cleanedData = JSON.parse(response);
+            } else if (response && response.choices && response.choices[0]?.message?.content) {
+                // Nouveau cas : extraire le contenu du message
+                const content = response.choices[0].message.content;
+                console.log("📝 Contenu brut extrait:", content);
                 
-                // Filtrer les entrées invalides
-                const cleanedData = data
-                    .filter(item => 
-                        item &&
-                        typeof item === 'object' &&
-                        item.field?.trim() &&
-                        (item.value === 'null' || item.value?.trim()) &&
-                        typeof item.confidence === 'number' &&
-                        item.confidence >= 0 &&
-                        item.confidence <= 1
-                    )
-                    .map(item => ({
-                        field: item.field.trim(),
-                        value: item.value === 'null' ? null : item.value.trim(),
-                        confidence: item.confidence,
-                        notes: item.notes.trim()
-                    }));
+                // Nettoyer le contenu avant le parsing
+                const cleanContent = content
+                    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Supprimer les caractères de contrôle
+                    .replace(/'/g, "'") // Remplacer les apostrophes courbes par des droites
+                    .replace(/`/g, "'") // Remplacer les backticks par des apostrophes
+                    .replace(/[\u2018\u2019]/g, "'") // Remplacer les guillemets simples typographiques
+                    .replace(/[\u201C\u201D]/g, '"'); // Remplacer les guillemets doubles typographiques
+                
+                console.log("🧹 Contenu nettoyé:", cleanContent);
+                
+                try {
+                    cleanedData = JSON.parse(cleanContent);
+                } catch (parseError) {
+                    console.error("❌ Erreur parsing JSON initial:", parseError);
+                    // Tentative de récupération en retirant les caractères problématiques
+                    const sanitizedContent = cleanContent.replace(/[^\x20-\x7E]/g, "");
+                    cleanedData = JSON.parse(sanitizedContent);
+                }
+            } else if (response && Array.isArray(response.cleanedData)) {
+                cleanedData = response.cleanedData;
+            } else {
+                throw new Error("Format de données invalide");
+            }
+            
+            console.log("📥 Données brutes récupérées:", cleanedData);
     
-                // Extraction de l'analyse
-                const analysisMatch = content.match(/<row_analysis>([\s\S]*?)<\/row_analysis>/);
-                const analysis = analysisMatch ? analysisMatch[1].trim() : '';
+            // Étape 2 : Normalisation des données
+            cleanedData = cleanedData.map(item => {
+                // Vérifier que l'item est un objet valide
+                if (!item || typeof item !== 'object') {
+                    console.warn("⚠️ Item invalide détecté:", item);
+                    return null;
+                }
+    
+                // Normalisation de la confiance
+                let confidence;
+                if (typeof item.confidence === 'string') {
+                    // Gérer les cas comme "100%" ou "0.8"
+                    confidence = parseFloat(item.confidence.replace('%', '')) / 
+                        (item.confidence.includes('%') ? 100 : 1);
+                } else if (typeof item.confidence === 'number') {
+                    confidence = item.confidence;
+                } else {
+                    confidence = 0;
+                    console.warn("⚠️ Confiance invalide pour:", item);
+                }
+    
+                // S'assurer que la confiance est entre 0 et 1
+                confidence = Math.max(0, Math.min(1, confidence));
     
                 return {
-                    success: true,
-                    cleanedData,
-                    analysis
+                    field: item.field || '',
+                    value: item.value || '',
+                    confidence: confidence,
+                    notes: item.notes || ''
                 };
+            }).filter(item => item !== null);
     
-            } catch (jsonError) {
-                console.error("❌ Erreur parsing JSON:", jsonError);
-                console.log("JSON problématique:", jsonStr);
-                return { 
-                    success: false, 
-                    error: jsonError.message 
-                };
-            }
+            console.log("✨ Données normalisées:", cleanedData);
+    
+            return {
+                success: true,
+                cleanedData: cleanedData,
+                analysis: ''
+            };
+    
         } catch (error) {
-            console.error("❌ Erreur générale:", error);
-            return { 
-                success: false, 
-                error: error.message 
+            console.error("❌ Erreur dans parseFullRowResponse:", error);
+            console.error("📄 Données problématiques:", response);
+            return {
+                success: false,
+                cleanedData: [],
+                analysis: error.message
             };
         }
     }

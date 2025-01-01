@@ -195,61 +195,78 @@ tr:nth-child(even) {
 /* Tooltip personnalisé */
 .custom-tooltip {
     position: fixed;
-    max-width: 800px;
+    max-width: 300px;
+    width: max-content;
     background: white;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     z-index: 1000;
-    display: none;
-    font-size: 14px;
-    line-height: 1.6;
-    overflow-y: auto;
-    max-height: 80vh;
+    font-size: 13px;
+    line-height: 1.4;
     pointer-events: none;
+    transition: all 0.1s ease-out;
 }
 
-/* Contenu du tooltip */
+/* Flèche de base */
+.custom-tooltip::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border: 1px solid var(--border-color);
+    transform: rotate(45deg);
+}
+
+/* Flèche pour tooltip en bas */
+.custom-tooltip.tooltip-bottom::before {
+    top: -7px;
+    left: 20px;
+    border-bottom: none;
+    border-right: none;
+}
+
+/* Flèche pour tooltip en haut */
+.custom-tooltip.tooltip-top::before {
+    bottom: -7px;
+    left: 20px;
+    border-top: none;
+    border-left: none;
+}
+
+/* Ajustements pour tooltip aligné à droite */
+.custom-tooltip.tooltip-right::before {
+    left: auto;
+    right: 20px;
+}
+
+/* Enlever la flèche si le tooltip est centré verticalement */
+.custom-tooltip:not(.tooltip-top):not(.tooltip-bottom)::before {
+    display: none;
+}
+
 .tooltip-content {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 0;
 }
 
-.tooltip-content h1, 
-.tooltip-content h2, 
-.tooltip-content h3 {
-    margin-top: 1em;
-    margin-bottom: 0.5em;
-    color: #333;
+.tooltip-content h1 {
+    font-size: 16px;
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
 }
 
-.tooltip-content ul, 
-.tooltip-content ol {
-    padding-left: 20px;
-    margin: 0.5em 0;
-}
-
-.tooltip-content code {
-    background: #f5f5f5;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-    font-size: 0.9em;
-}
-
-.tooltip-content pre {
-    background: #f5f5f5;
-    padding: 10px;
-    border-radius: 5px;
-    overflow-x: auto;
+.tooltip-content h2 {
+    font-size: 14px;
+    margin: 8px 0 4px 0;
+    color: #666;
 }
 
 .tooltip-content p {
-    margin: 0.5em 0;
-}
-
-.tooltip-content strong {
-    color: #2196F3;
+    margin: 0 0 8px 0;
 }
 
 /* Styles token */
