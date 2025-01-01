@@ -171,12 +171,12 @@ Instructions:
    }
 
    Important: 
-   - Do not create JSON objects for empty fields or fields with no clear purpose.
-   - Always standardize formats as specified in the cleaning rules, even if the original format is understandable.
-   - If a field cannot be normalized or reconstructed, set its value to null and explain why in the notes.
-   - Do not surround the JSON with additional quotes, code tags like 3 backticks json or any other extra characters or text. 
-   - Do not enclose the value like numbers or name in quotes in the JSON object.
-   - Do not include comments within the JSON objects. All explanations should be in the "notes" field.
+    - Do not create JSON objects for empty fields or fields without a clear purpose.
+    - Always normalize formats as specified in the cleaning rules, even if the original format is understandable.
+    - If a field cannot be normalized or reconstructed, set its value to null and explain why in the notes.
+    - Do not surround the JSON value with additional quotes, code tags like 3 backticks json, or any other superfluous characters or text.
+    - Do not put values in quotes (e.g., numbers or names) in the JSON object.
+    - Do not add any comments in JSON objects. All explanations must be placed in the "notes" field.
 
 7. Maintain consistency across the dataset, especially for recurring values like organization names or job titles.
 
