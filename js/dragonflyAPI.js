@@ -246,75 +246,59 @@ class DragonflyAPI {
         console.log("🔍 Début parseFullRowResponse avec:", response);
         
         try {
-            // Étape 1 : Extraire les données du format de réponse
-            let cleanedData;
-            
-            if (Array.isArray(response)) {
-                cleanedData = response;
-            } else if (typeof response === 'string') {
-                cleanedData = JSON.parse(response);
-            } else if (response && response.choices && response.choices[0]?.message?.content) {
-                // Nouveau cas : extraire le contenu du message
-                const content = response.choices[0].message.content;
+            // Étape 1 : Extraire le contenu
+            let content;
+            if (response.choices && response.choices[0]?.message?.content) {
+                content = response.choices[0].message.content;
                 console.log("📝 Contenu brut extrait:", content);
-                
-                // Nettoyer le contenu avant le parsing
-                const cleanContent = content
-                    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Supprimer les caractères de contrôle
-                    .replace(/'/g, "'") // Remplacer les apostrophes courbes par des droites
-                    .replace(/`/g, "'") // Remplacer les backticks par des apostrophes
-                    .replace(/[\u2018\u2019]/g, "'") // Remplacer les guillemets simples typographiques
-                    .replace(/[\u201C\u201D]/g, '"'); // Remplacer les guillemets doubles typographiques
-                
-                console.log("🧹 Contenu nettoyé:", cleanContent);
-                
-                try {
-                    cleanedData = JSON.parse(cleanContent);
-                } catch (parseError) {
-                    console.error("❌ Erreur parsing JSON initial:", parseError);
-                    // Tentative de récupération en retirant les caractères problématiques
-                    const sanitizedContent = cleanContent.replace(/[^\x20-\x7E]/g, "");
-                    cleanedData = JSON.parse(sanitizedContent);
-                }
-            } else if (response && Array.isArray(response.cleanedData)) {
-                cleanedData = response.cleanedData;
             } else {
-                throw new Error("Format de données invalide");
+                throw new Error("Format de réponse invalide");
             }
-            
-            console.log("📥 Données brutes récupérées:", cleanedData);
     
-            // Étape 2 : Normalisation des données
+            // Étape 2 : Nettoyer le contenu
+            content = content
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Supprimer les caractères de contrôle
+                .replace(/\\'/g, "'") // Remplacer \' par '
+                .replace(/\\"/g, '"') // Remplacer \" par "
+                .replace(/[\u2018\u2019]/g, "'") // Remplacer les guillemets simples typographiques
+                .replace(/[\u201C\u201D]/g, '"') // Remplacer les guillemets doubles typographiques
+                .trim();
+    
+            console.log("🧹 Contenu nettoyé:", content);
+    
+            // Étape 3 : Parser le JSON
+            let cleanedData;
+            try {
+                cleanedData = JSON.parse(content);
+            } catch (parseError) {
+                console.error("❌ Erreur parsing JSON initial:", parseError);
+                
+                // Tentative de récupération en retirant les caractères problématiques
+                const sanitizedContent = content
+                    .replace(/\\/g, '') // Retirer tous les backslashes
+                    .replace(/\s+/g, ' ') // Normaliser les espaces
+                    .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Ajouter des guillemets aux clés
+                    .replace(/'/g, '"'); // Remplacer les apostrophes par des guillemets doubles
+                
+                cleanedData = JSON.parse(sanitizedContent);
+            }
+    
+            // Étape 4 : Normaliser les données
             cleanedData = cleanedData.map(item => {
-                // Vérifier que l'item est un objet valide
-                if (!item || typeof item !== 'object') {
-                    console.warn("⚠️ Item invalide détecté:", item);
-                    return null;
+                // S'assurer que la confiance est un nombre
+                let confidence = item.confidence;
+                if (typeof confidence === 'string') {
+                    confidence = parseFloat(confidence.replace('%', '')) / 
+                        (confidence.includes('%') ? 100 : 1);
                 }
-    
-                // Normalisation de la confiance
-                let confidence;
-                if (typeof item.confidence === 'string') {
-                    // Gérer les cas comme "100%" ou "0.8"
-                    confidence = parseFloat(item.confidence.replace('%', '')) / 
-                        (item.confidence.includes('%') ? 100 : 1);
-                } else if (typeof item.confidence === 'number') {
-                    confidence = item.confidence;
-                } else {
-                    confidence = 0;
-                    console.warn("⚠️ Confiance invalide pour:", item);
-                }
-    
-                // S'assurer que la confiance est entre 0 et 1
-                confidence = Math.max(0, Math.min(1, confidence));
-    
+                
                 return {
                     field: item.field || '',
                     value: item.value || '',
-                    confidence: confidence,
+                    confidence: confidence || 0,
                     notes: item.notes || ''
                 };
-            }).filter(item => item !== null);
+            });
     
             console.log("✨ Données normalisées:", cleanedData);
     
