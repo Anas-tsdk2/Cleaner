@@ -24,11 +24,11 @@ graph TD
 ```html
 <div class="container">
     <h1>🧹 Nettoyeur de CSV</h1>
-    
+
     <!-- Zone Configuration -->
     <div class="config-section">
-        <input type="password" 
-               id="bearerToken" 
+        <input type="password"
+               id="bearerToken"
                placeholder="Collez votre Bearer Token ici"
                class="token-input">
         <div class="token-status"></div>

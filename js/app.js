@@ -10,13 +10,16 @@ const ERROR_MESSAGES = {
     parseError: 'Erreur lors de la lecture du fichier CSV.'
 };
 
+const exportButton = document.getElementById('exportButton');
+
 
 // État de l'application
 const state = {
     currentFile: null,
     headers: null,
     rows: null,
-    cleanedRows: []
+    cleanedRows: [],
+    exportReady: false  // Nouveau flag pour gérer l'état d'export
 };
 
 let dragonflyAPI;
@@ -28,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         SecurityLogger.log('DragonflyAPI initialisée');
         initializeDropZone();
         initializeCleanButton();
+        initializeExportButton();  // Nouvelle fonction
     } else {
         console.error('❌ DragonflyAPI non trouvée. Vérifiez l\'ordre de chargement des scripts.');
     }
@@ -199,9 +203,9 @@ const FIELD_MAPPING = {
 function displayCleanedRow(result, tbody, originalRow) {
     console.log("=== DÉBUT AFFICHAGE LIGNE NETTOYÉE ===");
     console.log("📊 Données reçues:", result);
-    
+
     const tr = document.createElement('tr');
-    
+
     // Vérifier et normaliser le format des données
     let cleanedData;
     if (result.cleanedData) {
@@ -219,9 +223,9 @@ function displayCleanedRow(result, tbody, originalRow) {
     // On parcourt les headers pour maintenir l'ordre des colonnes
     state.headers.forEach(header => {
         console.log(`\n🔍 Traitement header: "${header}"`);
-        
+
         const td = document.createElement('td');
-        
+
         // Conversion du header en anglais pour la recherche
         const englishField = FIELD_MAPPING[header.toLowerCase()];
         console.log(`  🔄 Conversion header: ${header} -> ${englishField}`);
@@ -235,16 +239,16 @@ function displayCleanedRow(result, tbody, originalRow) {
 
         if (fieldData) {
             console.log(`  ✅ Données trouvées pour ${header}:`, fieldData);
-            
+
             td.textContent = fieldData.value || '-';
-            
+
             // La confiance est déjà un nombre décimal
             const confidence = fieldData.confidence;
             console.log(`  📊 Confiance: ${confidence}`);
-            
+
             const confidenceClass = getConfidenceClass(confidence);
             console.log(`  🎨 Classe de confiance: ${confidenceClass}`);
-            
+
             td.className = `confidence-cell ${confidenceClass}`;
 
             // Si la valeur a été modifiée
@@ -279,70 +283,21 @@ function displayCleanedRow(result, tbody, originalRow) {
 
         tr.appendChild(td);
     });
-    
+
     tbody.appendChild(tr);
     console.log("=== FIN AFFICHAGE LIGNE NETTOYÉE ===\n");
 }
 
 
 async function handleCleanData() {
-    console.log("🚀 DÉBUT DU NETTOYAGE DES DONNÉES");
     const cleanButton = document.getElementById('cleanButton');
+    const exportButton = document.getElementById('exportButton');
+    const dedupeButton = document.getElementById('dedupeButton');
+    
+    // Désactiver tous les boutons pendant le traitement
     cleanButton.disabled = true;
-
-    try {
-        state.cleanedRows = [];
-        const resultTable = document.getElementById('resultTable');
-        resultTable.innerHTML = '';
-
-        console.log("📋 Headers actuels:", state.headers);
-
-        // Création de l'en-tête
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        state.headers.forEach(header => {
-            const th = document.createElement('th');
-            th.textContent = header;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        resultTable.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        resultTable.appendChild(tbody);
-
-        // Traitement de chaque ligne
-        for (const row of state.rows) {
-            console.log("\n=== TRAITEMENT NOUVELLE LIGNE ===");
-            console.log("📄 Ligne originale:", row);
-            
-            const result = await dragonflyAPI.processFullRow(row, state.headers);
-            console.log("✨ Résultat API:", result);
-            
-            displayCleanedRow(result, tbody, row);
-            
-            if (result.success) {
-                state.cleanedRows.push(result);
-                console.log("✅ Ligne traitée avec succès");
-            } else {
-                console.log("❌ Échec du traitement de la ligne");
-            }
-        }
-
-    } catch (error) {
-        console.error('💥 Erreur pendant le nettoyage:', error);
-        alert('Une erreur est survenue pendant le nettoyage');
-    } finally {
-        cleanButton.disabled = false;
-        console.log("🏁 FIN DU NETTOYAGE DES DONNÉES\n");
-    }
-}
-
-
-// Modification de la fonction handleCleanData pour passer le résultat directement
-async function handleCleanData() {
-    const cleanButton = document.getElementById('cleanButton');
-    cleanButton.disabled = true;
+    exportButton.disabled = true;
+    if (dedupeButton) dedupeButton.disabled = true;
 
     try {
         state.cleanedRows = [];
@@ -360,55 +315,14 @@ async function handleCleanData() {
         thead.appendChild(headerRow);
         resultTable.appendChild(thead);
 
+        // Création du tbody
         const tbody = document.createElement('tbody');
         resultTable.appendChild(tbody);
 
         // Traitement de chaque ligne
-        for (const row of state.rows) {
-            console.log("🔄 Traitement de la ligne:", row);
-            const result = await dragonflyAPI.processFullRow(row, state.headers);
-            console.log("✨ Résultat obtenu:", result);
-            
-            displayCleanedRow(result, tbody, row);
-            if (result.success) {
-                state.cleanedRows.push(result);
-            }
-        }
+        let processedRows = 0;
+        const totalRows = state.rows.length;
 
-    } catch (error) {
-        console.error('Erreur pendant le nettoyage:', error);
-        alert('Une erreur est survenue pendant le nettoyage');
-    } finally {
-        cleanButton.disabled = false;
-    }
-}
-
-
-// Modifier aussi handleCleanData pour passer la ligne originale
-async function handleCleanData() {
-    const cleanButton = document.getElementById('cleanButton');
-    cleanButton.disabled = true;
-
-    try {
-        state.cleanedRows = [];
-        const resultTable = document.getElementById('resultTable');
-        resultTable.innerHTML = '';
-
-        // Création de l'en-tête
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        state.headers.forEach(header => {
-            const th = document.createElement('th');
-            th.textContent = header;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        resultTable.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        resultTable.appendChild(tbody);
-
-        // Traitement de chaque ligne
         for (const row of state.rows) {
             console.log("🔄 Traitement de la ligne:", row);
             const result = await dragonflyAPI.processFullRow(row, state.headers);
@@ -424,23 +338,54 @@ async function handleCleanData() {
                 console.error("❌ Erreur sur la ligne:", result.error);
                 displayErrorRow(row, tbody);
             }
+
+            // Mise à jour de la progression
+            processedRows++;
+            const progress = (processedRows / totalRows) * 100;
+            updateProgressBar(progress);
+        }
+
+        // Activer les boutons si nous avons des données nettoyées
+        if (state.cleanedRows.length > 0) {
+            exportButton.disabled = false;
+            
+            // Gérer l'activation du bouton dedupe de manière plus sûre
+            if (window.dedupeManager && typeof window.dedupeManager.enable === 'function') {
+                window.dedupeManager.enable();
+            } else if (dedupeButton) {
+                dedupeButton.disabled = false;
+                console.warn('DedupeManager non trouvé, activation directe du bouton');
+            }
+            
+            console.log("✅ Export et dédupe activés avec", state.cleanedRows.length, "lignes");
         }
 
     } catch (error) {
         console.error('Erreur pendant le nettoyage:', error);
-        alert('Une erreur est survenue pendant le nettoyage');
+        SecurityLogger.error('Erreur pendant le nettoyage:', error);
+        showError('Une erreur est survenue pendant le nettoyage');
     } finally {
         cleanButton.disabled = false;
+        updateProgressBar(0); // Réinitialiser la barre de progression
+    }
+}
+
+// Fonction utilitaire pour mettre à jour la barre de progression
+function updateProgressBar(percentage) {
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) {
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
     }
 }
 
 // Fonction utilitaire pour déterminer la classe de confiance
 function getConfidenceClass(confidence) {
     if (typeof confidence !== 'number') return 'confidence-25';
-    
+
     // Convertir en pourcentage pour plus de clarté
     const confidencePercent = confidence * 100;
-    
+
     if (confidencePercent >= 90) {
         return 'confidence-100';
     } else if (confidencePercent >= 85) {
@@ -473,7 +418,7 @@ function showError(message) {
 
 function showDetails(event, fieldData) {
     const tooltip = document.querySelector('.custom-tooltip') || createTooltip();
-    
+
     const markdown = `
 # Détails du champ ${fieldData.field}
 
@@ -486,7 +431,7 @@ ${(fieldData.confidence * 100).toFixed(1)}%
 ## Notes de nettoyage
 ${fieldData.notes}
     `;
-    
+
     tooltip.querySelector('.tooltip-content').innerHTML = marked.parse(markdown);
     tooltip.style.display = 'block'; // Afficher pour obtenir les dimensions
 
@@ -494,7 +439,7 @@ ${fieldData.notes}
     const rect = event.target.getBoundingClientRect();
     const tooltipHeight = tooltip.offsetHeight;
     const tooltipWidth = tooltip.offsetWidth;
-    
+
     // Calcul initial des positions
     let top, left;
     const margin = 10; // Marge de sécurité
@@ -549,5 +494,74 @@ function closeTooltipOnClickOutside(event) {
     if (tooltip && !tooltip.contains(event.target)) {
         tooltip.style.display = 'none';
         document.removeEventListener('click', closeTooltipOnClickOutside);
+    }
+}
+
+function initializeExportButton() {
+    const exportButton = document.getElementById('exportButton');
+    if (exportButton) {
+        exportButton.addEventListener('click', handleExport);
+        SecurityLogger.log('Bouton export initialisé');
+    } else {
+        console.error('❌ Bouton export non trouvé');
+    }
+}
+
+// Ajouter cette fonction après initializeExportButton
+function handleExport() {
+    console.log("🚀 Début de l'export");
+    const exportButton = document.getElementById('exportButton');
+    
+    try {
+        // Vérifier qu'il y a des données à exporter
+        if (!state.cleanedRows || state.cleanedRows.length === 0) {
+            throw new Error('Aucune donnée à exporter');
+        }
+
+        // Créer le contenu CSV
+        const csvContent = [];
+        
+        // Ajouter l'en-tête
+        csvContent.push(state.headers.join(';'));
+        
+        // Ajouter les lignes nettoyées
+        state.cleanedRows.forEach(row => {
+            if (row.cleanedData) {
+                const rowData = state.headers.map(header => {
+                    const englishField = FIELD_MAPPING[header.toLowerCase()];
+                    const field = row.cleanedData.find(item => 
+                        item.field.toLowerCase() === englishField
+                    );
+                    return field ? `"${field.value.replace(/"/g, '""')}"` : '""';
+                });
+                csvContent.push(rowData.join(';'));
+            }
+        });
+
+        // Créer le blob avec BOM UTF-8
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent.join('\n')], { 
+            type: 'text/csv;charset=utf-8' 
+        });
+
+        // Créer le lien de téléchargement
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `donnees_nettoyees_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        
+        // Déclencher le téléchargement
+        link.click();
+        
+        // Nettoyer
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        console.log("✅ Export terminé avec succès");
+
+    } catch (error) {
+        console.error('❌ Erreur lors de l\'export:', error);
+        alert('Une erreur est survenue lors de l\'export: ' + error.message);
     }
 }

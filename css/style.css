@@ -6,13 +6,6 @@
     --border-color: #ddd;
     --error-color: #f44336;
     --success-color: #4CAF50;
-
-    /* Couleurs de confiance */
-    --confidence-100-90: rgba(76, 175, 80, 0.2);  /* Vert */
-    --confidence-90-85: rgba(139, 195, 74, 0.2);  /* Vert-jaune */
-    --confidence-85-50: rgba(255, 152, 0, 0.2);   /* Orange */
-    --confidence-50-25: rgba(255, 87, 34, 0.2);   /* Orange-rouge */
-    --confidence-25-0: rgba(244, 67, 54, 0.2);    /* Rouge */
 }
 
 /* Reset basique */
@@ -71,7 +64,7 @@ h1 {
     text-align: center;
 }
 
-/* Style du bouton */
+/* Style des boutons */
 .button {
     background-color: var(--primary-color);
     color: white;
@@ -105,6 +98,120 @@ h1 {
 
 .button-icon {
     font-size: 20px;
+}
+
+/* Style pour le bouton d'export */
+.button-export {
+    background-color: #4CAF50;
+    margin-left: 10px;
+}
+
+.button-export:hover {
+    background-color: #388E3C;
+}
+
+.button-export:disabled {
+    background-color: #ccc;
+}
+
+/* Style pour le bouton de déduplication */
+.button-dedupe {
+    background-color: #FF9800;
+    margin-left: 10px;
+}
+
+.button-dedupe:hover {
+    background-color: #F57C00;
+}
+
+.button-dedupe:disabled {
+    background-color: #ccc;
+}
+
+/* Modal de déduplication */
+.dedupe-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.dedupe-modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+.dedupe-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.dedupe-checkbox {
+    align-self: center;
+    margin-right: 10px;
+}
+
+.field-detail {
+    display: inline-block;
+    margin-right: 15px;
+}
+
+.field-name {
+    color: #666;
+    font-weight: 500;
+    margin-right: 5px;
+}
+
+.field-value {
+    color: #333;
+}
+
+.dedupe-group {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.dedupe-group h3 {
+    background: #f5f5f5;
+    margin: 0;
+    padding: 10px 15px;
+    border-bottom: 1px solid #ddd;
+    font-size: 16px;
+    color: #333;
+}
+
+.dedupe-row:hover {
+    background: #f8f9fa;
+}
+
+.dedupe-row.selected {
+    background: #e3f2fd;
+}
+
+.dedupe-row.selected:hover {
+    background: #bbdefb;
 }
 
 /* Wrapper pour les tableaux */
@@ -161,29 +268,29 @@ tr:nth-child(even) {
     transition: all 0.3s ease;
 }
 
-/* Niveaux de confiance avec dégradés */
+/* Niveaux de confiance */
 .confidence-100 {
-    background-color: var(--confidence-100-90);
+    background-color: rgba(76, 175, 80, 0.2);
     border-left: 3px solid rgba(76, 175, 80, 0.8);
 }
 
 .confidence-90 {
-    background-color: var(--confidence-90-85);
+    background-color: rgba(139, 195, 74, 0.2);
     border-left: 3px solid rgba(139, 195, 74, 0.8);
 }
 
 .confidence-85 {
-    background-color: var(--confidence-85-50);
+    background-color: rgba(255, 152, 0, 0.2);
     border-left: 3px solid rgba(255, 152, 0, 0.8);
 }
 
 .confidence-50 {
-    background-color: var(--confidence-50-25);
+    background-color: rgba(255, 87, 34, 0.2);
     border-left: 3px solid rgba(255, 87, 34, 0.8);
 }
 
 .confidence-25 {
-    background-color: var(--confidence-25-0);
+    background-color: rgba(244, 67, 54, 0.2);
     border-left: 3px solid rgba(244, 67, 54, 0.8);
 }
 
@@ -207,48 +314,6 @@ tr:nth-child(even) {
     line-height: 1.4;
     pointer-events: none;
     transition: all 0.1s ease-out;
-}
-
-/* Flèche de base */
-.custom-tooltip::before {
-    content: '';
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    background: white;
-    border: 1px solid var(--border-color);
-    transform: rotate(45deg);
-}
-
-/* Flèche pour tooltip en bas */
-.custom-tooltip.tooltip-bottom::before {
-    top: -7px;
-    left: 20px;
-    border-bottom: none;
-    border-right: none;
-}
-
-/* Flèche pour tooltip en haut */
-.custom-tooltip.tooltip-top::before {
-    bottom: -7px;
-    left: 20px;
-    border-top: none;
-    border-left: none;
-}
-
-/* Ajustements pour tooltip aligné à droite */
-.custom-tooltip.tooltip-right::before {
-    left: auto;
-    right: 20px;
-}
-
-/* Enlever la flèche si le tooltip est centré verticalement */
-.custom-tooltip:not(.tooltip-top):not(.tooltip-bottom)::before {
-    display: none;
-}
-
-.tooltip-content {
-    padding: 0;
 }
 
 .tooltip-content h1 {
@@ -347,6 +412,15 @@ tr:nth-child(even) {
     color: var(--error-color);
 }
 
+/* Progress bar */
+.progress-bar {
+    width: 0;
+    height: 4px;
+    background-color: var(--primary-color);
+    transition: width 0.3s ease;
+    margin: 10px 0;
+}
+
 /* Adaptation responsive */
 @media (max-width: 768px) {
     .tables-wrapper {
@@ -360,5 +434,10 @@ tr:nth-child(even) {
     td, th {
         padding: 8px;
         font-size: 13px;
+    }
+
+    .dedupe-modal {
+        width: 95%;
+        max-height: 95vh;
     }
 }
