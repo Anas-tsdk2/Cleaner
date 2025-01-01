@@ -1,4 +1,3 @@
-```markdown
 # Documentation - Cora's CSV Cleaner v1.0
 
 ## Table des matières
