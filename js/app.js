@@ -35,7 +35,68 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error('❌ DragonflyAPI non trouvée. Vérifiez l\'ordre de chargement des scripts.');
     }
+    // Initialisation de la gestion du token
+    initializeTokenHandling();
 });
+
+function initializeTokenHandling() {
+    const tokenInput = document.getElementById('bearerToken');
+    const tokenStatus = document.getElementById('tokenStatus');
+    const clearTokenButton = document.getElementById('clearToken');
+
+    // Restaurer le token s'il existe
+    const savedToken = TokenManager.get();
+    if (savedToken) {
+        tokenInput.value = savedToken;
+        validateAndUpdateToken(savedToken);
+    }
+
+    // Gérer la saisie du token
+    tokenInput.addEventListener('input', async (e) => {
+        const token = e.target.value.trim();
+        validateAndUpdateToken(token);
+    });
+
+    // Gérer le bouton de suppression
+    clearTokenButton.addEventListener('click', () => {
+        tokenInput.value = '';
+        TokenManager.clear();
+        tokenStatus.textContent = '';
+        tokenStatus.className = 'token-status';
+    });
+}
+
+async function validateAndUpdateToken(token) {
+    const tokenStatus = document.getElementById('tokenStatus');
+    
+    if (!token) {
+        tokenStatus.textContent = '';
+        tokenStatus.className = 'token-status';
+        return;
+    }
+
+    tokenStatus.textContent = 'Validation...';
+    tokenStatus.className = 'token-status validating';
+
+    try {
+        const isValid = await dragonflyAPI.validateToken(token);
+        
+        if (isValid) {
+            tokenStatus.textContent = '✓ Token valide';
+            tokenStatus.className = 'token-status valid';
+            TokenManager.store(token);
+        } else {
+            tokenStatus.textContent = '✗ Token invalide';
+            tokenStatus.className = 'token-status invalid';
+            TokenManager.clear();
+        }
+    } catch (error) {
+        console.error('Erreur de validation du token:', error);
+        tokenStatus.textContent = '✗ Erreur de validation';
+        tokenStatus.className = 'token-status error';
+        TokenManager.clear();
+    }
+}
 
 // Initialisation de la zone de drop
 function initializeDropZone() {

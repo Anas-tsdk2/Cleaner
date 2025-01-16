@@ -449,3 +449,24 @@ tr:nth-child(even) {
     margin: -20px 0 30px 0;
     font-style: italic;
 }
+
+.token-status {
+    margin-top: 5px;
+    font-size: 14px;
+}
+
+.token-status.validating {
+    color: #666;
+}
+
+.token-status.valid {
+    color: #4CAF50;
+}
+
+.token-status.invalid {
+    color: #f44336;
+}
+
+.token-status.error {
+    color: #f44336;
+}

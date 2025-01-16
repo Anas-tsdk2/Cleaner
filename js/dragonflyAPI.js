@@ -20,6 +20,13 @@ class DragonflyAPI {
             });
             const isValid = response.ok;
             console.log(isValid ? "✅ Token valide" : "❌ Token invalide");
+            
+            // Stocker le token seulement s'il est valide
+            if (isValid) {
+                TokenManager.store(token);
+                console.log("💾 Token stocké avec succès");
+            }
+            
             return isValid;
         } catch (error) {
             console.error("❌ Erreur validation token:", error);
@@ -322,7 +329,7 @@ class DragonflyAPI {
     generateErrorResponse(row, headers) {
         return {
             success: false,
-            headers:data.map((header, index) => ({
+            cleanedData: headers.map((header, index) => ({
                 field: header,
                 value: row[index] || '',
                 confidence: 0,
