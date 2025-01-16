@@ -303,43 +303,72 @@ function displayCleanedRow(result, tbody, originalRow) {
 
             td.textContent = fieldData.value || '-';
 
-            // La confiance est déjà un nombre décimal
-            const confidence = fieldData.confidence;
-            console.log(`  📊 Confiance: ${confidence}`);
+            // Amélioration de la gestion de la confiance
+            let confidence = fieldData.confidence;
+            
+            // Conversion de la confiance en nombre décimal
+            if (typeof confidence === 'string') {
+                confidence = parseFloat(confidence.replace('%', ''));
+                if (confidence && !isNaN(confidence)) {
+                    if (confidence > 1) {
+                        confidence = confidence / 100;
+                    }
+                } else {
+                    confidence = 0;
+                }
+            }
+
+            // S'assurer que la confiance est un nombre valide entre 0 et 1
+            confidence = Math.max(0, Math.min(1, Number(confidence) || 0));
+            
+            console.log(`  📊 Confiance brute: ${fieldData.confidence}`);
+            console.log(`  📊 Confiance normalisée: ${confidence} (${(confidence * 100).toFixed(1)}%)`);
 
             const confidenceClass = getConfidenceClass(confidence);
             console.log(`  🎨 Classe de confiance: ${confidenceClass}`);
 
             td.className = `confidence-cell ${confidenceClass}`;
 
-            // Si la valeur a été modifiée
+            // Ajouter le pourcentage de confiance comme attribut title
+            td.title = `Confiance: ${(confidence * 100).toFixed(1)}%`;
+
+            // Vérification si la valeur a été modifiée
             const originalValue = originalRow[state.headers.indexOf(header)];
             if (originalValue !== fieldData.value) {
                 td.classList.add('cell-modified');
                 console.log(`  🔄 Valeur modifiée: "${originalValue}" -> "${fieldData.value}"`);
+                
+                // Ajouter l'ancienne valeur au title
+                td.title += `\nValeur originale: "${originalValue}"`;
             }
 
-            // Ajouter les événements pour le tooltip
-            td.style.cursor = 'pointer';
-            td.addEventListener('mouseenter', (event) => {
-                clearTimeout(td.tooltipTimer);
-                td.tooltipTimer = setTimeout(() => {
-                    showDetails(event, fieldData);
-                }, 50);
-            });
+            // Ajouter les événements pour le tooltip seulement si on a des notes
+            if (fieldData.notes) {
+                td.style.cursor = 'pointer';
+                td.addEventListener('mouseenter', (event) => {
+                    clearTimeout(td.tooltipTimer);
+                    td.tooltipTimer = setTimeout(() => {
+                        showDetails(event, {
+                            ...fieldData,
+                            confidence: confidence, // Utiliser la confiance normalisée
+                        });
+                    }, 50);
+                });
 
-            td.addEventListener('mouseleave', () => {
-                clearTimeout(td.tooltipTimer);
-                const tooltip = document.querySelector('.custom-tooltip');
-                if (tooltip) {
-                    tooltip.style.display = 'none';
-                }
-            });
+                td.addEventListener('mouseleave', () => {
+                    clearTimeout(td.tooltipTimer);
+                    const tooltip = document.querySelector('.custom-tooltip');
+                    if (tooltip) {
+                        tooltip.style.display = 'none';
+                    }
+                });
+            }
 
         } else {
             console.log(`  ❌ Aucune donnée trouvée pour ${header}`);
             td.textContent = '-';
             td.className = 'confidence-cell confidence-error';
+            td.title = 'Données non trouvées';
         }
 
         tr.appendChild(td);
@@ -442,21 +471,43 @@ function updateProgressBar(percentage) {
 
 // Fonction utilitaire pour déterminer la classe de confiance
 function getConfidenceClass(confidence) {
-    if (typeof confidence !== 'number') return 'confidence-25';
+    // Gérer les cas particuliers
+    if (confidence === null || confidence === undefined) {
+        return 'confidence-error';
+    }
 
-    // Convertir en pourcentage pour plus de clarté
-    const confidencePercent = confidence * 100;
+    // S'assurer que la confiance est un nombre
+    let confidenceValue = confidence;
+    if (typeof confidence === 'string') {
+        // Enlever le symbole % si présent et convertir en nombre
+        confidenceValue = parseFloat(confidence.replace('%', ''));
+        // Si c'était en pourcentage, convertir en décimal
+        if (confidence.includes('%')) {
+            confidenceValue = confidenceValue / 100;
+        }
+    }
 
-    if (confidencePercent >= 90) {
+    // Vérifier si la conversion a échoué
+    if (isNaN(confidenceValue)) {
+        return 'confidence-error';
+    }
+
+    // Convertir en pourcentage pour la comparaison
+    const confidencePercent = confidenceValue * 100;
+
+    // Attribution des classes selon les seuils
+    if (confidencePercent >= 95) {
         return 'confidence-100';
     } else if (confidencePercent >= 85) {
         return 'confidence-90';
-    } else if (confidencePercent >= 50) {
+    } else if (confidencePercent >= 75) {
         return 'confidence-85';
-    } else if (confidencePercent >= 25) {
+    } else if (confidencePercent >= 50) {
         return 'confidence-50';
-    } else {
+    } else if (confidencePercent > 0) {
         return 'confidence-25';
+    } else {
+        return 'confidence-error';
     }
 }
 

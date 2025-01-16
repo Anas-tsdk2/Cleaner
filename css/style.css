@@ -265,33 +265,34 @@ tr:nth-child(even) {
 /* Styles de confiance */
 .confidence-cell {
     position: relative;
-    transition: all 0.3s ease;
 }
 
-/* Niveaux de confiance */
 .confidence-100 {
-    background-color: rgba(76, 175, 80, 0.2);
-    border-left: 3px solid rgba(76, 175, 80, 0.8);
+    background-color: rgba(0, 200, 0, 0.2);  /* Vert plus foncé */
 }
 
 .confidence-90 {
-    background-color: rgba(139, 195, 74, 0.2);
-    border-left: 3px solid rgba(139, 195, 74, 0.8);
+    background-color: rgba(150, 200, 0, 0.15);  /* Vert-jaune */
 }
 
 .confidence-85 {
-    background-color: rgba(255, 152, 0, 0.2);
-    border-left: 3px solid rgba(255, 152, 0, 0.8);
+    background-color: rgba(200, 200, 0, 0.15);  /* Jaune-vert */
 }
 
 .confidence-50 {
-    background-color: rgba(255, 87, 34, 0.2);
-    border-left: 3px solid rgba(255, 87, 34, 0.8);
+    background-color: rgba(255, 165, 0, 0.15);  /* Orange */
 }
 
 .confidence-25 {
-    background-color: rgba(244, 67, 54, 0.2);
-    border-left: 3px solid rgba(244, 67, 54, 0.8);
+    background-color: rgba(255, 100, 0, 0.15);  /* Orange-rouge */
+}
+
+.confidence-error {
+    background-color: rgba(255, 0, 0, 0.2);  /* Rouge */
+}
+
+.cell-modified {
+    font-weight: bold;
 }
 
 /* Cellules modifiées */
