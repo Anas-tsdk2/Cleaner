@@ -180,22 +180,68 @@ function sanitizeContent(content) {
 
 function parseCSV(content) {
     try {
+        // Nettoyer le contenu
         content = sanitizeContent(content);
-        const lines = content.split('\n');
+        
+        // Gérer les différents types de retour à la ligne (CRLF, LF)
+        const lines = content.split(/\r?\n/);
+        
         if (lines.length === 0) {
             SecurityLogger.error('Fichier CSV vide');
             return;
         }
 
+        // Détecter le séparateur (adaptez selon votre cas)
         const separator = lines[0].includes(';') ? ';' : ',';
-        state.headers = lines[0].split(separator).map(h => h.trim());
+        
+        // Traiter les en-têtes
+        state.headers = lines[0]
+            .split(separator)
+            .map(h => h.trim())
+            .filter(h => h); // Enlever les cellules vides
+
+        // Traiter les lignes
         state.rows = lines.slice(1)
             .filter(line => line.trim() !== '')
-            .map(line => line.split(separator).map(cell => cell.trim()));
+            .map(line => {
+                // Gérer les champs qui contiennent des séparateurs entre guillemets
+                const row = [];
+                let field = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === separator && !inQuotes) {
+                        row.push(field.trim());
+                        field = '';
+                    } else {
+                        field += char;
+                    }
+                }
+                
+                // Ajouter le dernier champ
+                row.push(field.trim());
+                
+                // S'assurer que nous avons le bon nombre de colonnes
+                while (row.length < state.headers.length) {
+                    row.push('');
+                }
+                
+                return row;
+            });
 
+        // Validation améliorée
         if (!validateCSVStructure(state.headers, state.rows)) {
-            SecurityLogger.error('Structure CSV invalide');
-            alert('Le fichier CSV semble mal formaté');
+            SecurityLogger.error('Structure CSV invalide', {
+                headers: state.headers,
+                firstRow: state.rows[0],
+                headerCount: state.headers.length,
+                firstRowCount: state.rows[0] ? state.rows[0].length : 0
+            });
+            alert('Le fichier CSV semble mal formaté. Vérifiez que toutes les lignes ont le même nombre de colonnes.');
             return;
         }
 
@@ -209,14 +255,39 @@ function parseCSV(content) {
 
     } catch (error) {
         SecurityLogger.error('Erreur lors du parsing CSV', error);
-        alert('Erreur lors de la lecture du fichier CSV');
+        alert('Erreur lors de la lecture du fichier CSV: ' + error.message);
     }
 }
 
+// Améliorer la fonction de validation
 function validateCSVStructure(headers, rows) {
-    if (!headers.length) return false;
+    if (!headers || !headers.length) {
+        console.error('En-têtes manquants');
+        return false;
+    }
+
+    if (!rows || !rows.length) {
+        console.error('Aucune ligne de données');
+        return false;
+    }
+
     const headerCount = headers.length;
-    return rows.every(row => row.length === headerCount);
+    
+    // Vérifier chaque ligne
+    const invalidRows = rows.filter(row => row.length !== headerCount);
+    
+    if (invalidRows.length > 0) {
+        console.error('Lignes invalides trouvées:', {
+            headerCount,
+            invalidRows: invalidRows.map(row => ({
+                length: row.length,
+                content: row
+            }))
+        });
+        return false;
+    }
+
+    return true;
 }
 
 function displaySourceTable() {
