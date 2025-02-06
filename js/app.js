@@ -98,6 +98,25 @@ async function validateAndUpdateToken(token) {
     }
 }
 
+// Ajouter cette fonction dans app.js
+function getConfidenceClass(confidence) {
+    if (confidence === null || confidence === undefined) {
+        return 'confidence-error';
+    }
+    
+    const confidenceValue = parseFloat(confidence);
+    if (isNaN(confidenceValue)) {
+        return 'confidence-error';
+    }
+    
+    if (confidenceValue >= 0.95) return 'confidence-100';
+    if (confidenceValue >= 0.85) return 'confidence-90';
+    if (confidenceValue >= 0.75) return 'confidence-85';
+    if (confidenceValue >= 0.50) return 'confidence-50';
+    if (confidenceValue > 0) return 'confidence-25';
+    return 'confidence-error';
+}
+
 // Initialisation de la zone de drop
 function initializeDropZone() {
     const dropZone = document.getElementById('dropZone');
@@ -324,12 +343,12 @@ function displaySourceTable() {
 const FIELD_MAPPING = {
     'civilité': 'civility',
     'prénom': 'firstname',
-    'nom': 'lastname',
+    'nom de famille': 'lastname',  // Ajout de la bonne correspondance
     'nom complet': 'fullname',
     'fonction': 'jobtitle',
-    'e-mail': 'email',
+    'email': 'email',             // Changé de 'e-mail' à 'email'
     'organisation': 'organization',
-    'numéro de téléphone': 'phonenumber'
+    'téléphone': 'phonenumber'    // Ajout de la bonne correspondance
 };
 
 function displayCleanedRow(result, tbody, originalRow) {
@@ -454,8 +473,10 @@ async function handleCleanData() {
     const cleanButton = document.getElementById('cleanButton');
     const exportButton = document.getElementById('exportButton');
     const dedupeButton = document.getElementById('dedupeButton');
+    const BATCH_SIZE = 10;
+    const MAX_CONCURRENT_BATCHES = 3;
     
-    // Désactiver tous les boutons pendant le traitement
+    // Désactiver les boutons
     cleanButton.disabled = true;
     exportButton.disabled = true;
     if (dedupeButton) dedupeButton.disabled = true;
@@ -480,44 +501,60 @@ async function handleCleanData() {
         const tbody = document.createElement('tbody');
         resultTable.appendChild(tbody);
 
-        // Traitement de chaque ligne
-        let processedRows = 0;
-        const totalRows = state.rows.length;
-
-        for (const row of state.rows) {
-            console.log("🔄 Traitement de la ligne:", row);
-            const result = await dragonflyAPI.processFullRow(row, state.headers);
-            console.log("✨ Résultat obtenu:", result);
+        // Traiter les données par groupes de 3 lots de 20 lignes
+        for (let startIndex = 0; startIndex < state.rows.length; startIndex += (BATCH_SIZE * MAX_CONCURRENT_BATCHES)) {
+            // Préparer les 3 lots
+            const batchPromises = [];
             
-            if (result.success && Array.isArray(result.cleanedData)) {
-                displayCleanedRow({
-                    data: result.cleanedData,
-                    analysis: result.analysis
-                }, tbody, row);
-                state.cleanedRows.push(result);
-            } else {
-                console.error("❌ Erreur sur la ligne:", result.error);
-                displayErrorRow(row, tbody);
+            for (let i = 0; i < MAX_CONCURRENT_BATCHES; i++) {
+                const batchStartIndex = startIndex + (i * BATCH_SIZE);
+                const batchRows = state.rows.slice(batchStartIndex, batchStartIndex + BATCH_SIZE);
+                
+                if (batchRows.length > 0) {
+                    // Traiter chaque ligne du lot
+                    const batchPromise = Promise.all(
+                        batchRows.map(row => dragonflyAPI.processFullRow(row, state.headers))
+                    );
+                    batchPromises.push(batchPromise);
+                }
             }
 
+            // Attendre que les 3 lots soient terminés
+            const batchResults = await Promise.all(batchPromises);
+            
+            // Afficher les résultats des 3 lots
+            batchResults.forEach((batchResult, batchIndex) => {
+                const batchStartIndex = startIndex + (batchIndex * BATCH_SIZE);
+                
+                batchResult.forEach((result, rowIndex) => {
+                    const originalRow = state.rows[batchStartIndex + rowIndex];
+                    
+                    if (result.success && Array.isArray(result.cleanedData)) {
+                        displayCleanedRow({
+                            cleanedData: result.cleanedData,
+                            analysis: result.analysis
+                        }, tbody, originalRow);
+                        state.cleanedRows.push(result);
+                    } else {
+                        console.error("❌ Erreur sur la ligne:", result.error);
+                        displayErrorRow(originalRow, tbody);
+                    }
+                });
+            });
+
             // Mise à jour de la progression
-            processedRows++;
-            const progress = (processedRows / totalRows) * 100;
-            updateProgressBar(progress);
+            const progress = Math.min(100, (startIndex + (BATCH_SIZE * MAX_CONCURRENT_BATCHES)) / state.rows.length * 100);
+            
         }
 
         // Activer les boutons si nous avons des données nettoyées
         if (state.cleanedRows.length > 0) {
             exportButton.disabled = false;
-            
-            // Gérer l'activation du bouton dedupe de manière plus sûre
-            if (window.dedupeManager && typeof window.dedupeManager.enable === 'function') {
+            if (window.dedupeManager?.enable) {
                 window.dedupeManager.enable();
             } else if (dedupeButton) {
                 dedupeButton.disabled = false;
-                console.warn('DedupeManager non trouvé, activation directe du bouton');
             }
-            
             console.log("✅ Export et dédupe activés avec", state.cleanedRows.length, "lignes");
         }
 
@@ -527,58 +564,7 @@ async function handleCleanData() {
         showError('Une erreur est survenue pendant le nettoyage');
     } finally {
         cleanButton.disabled = false;
-        updateProgressBar(0); // Réinitialiser la barre de progression
-    }
-}
-
-// Fonction utilitaire pour mettre à jour la barre de progression
-function updateProgressBar(percentage) {
-    const progressBar = document.querySelector('.progress-bar');
-    if (progressBar) {
-        progressBar.style.width = `${percentage}%`;
-        progressBar.setAttribute('aria-valuenow', percentage);
-    }
-}
-
-// Fonction utilitaire pour déterminer la classe de confiance
-function getConfidenceClass(confidence) {
-    // Gérer les cas particuliers
-    if (confidence === null || confidence === undefined) {
-        return 'confidence-error';
-    }
-
-    // S'assurer que la confiance est un nombre
-    let confidenceValue = confidence;
-    if (typeof confidence === 'string') {
-        // Enlever le symbole % si présent et convertir en nombre
-        confidenceValue = parseFloat(confidence.replace('%', ''));
-        // Si c'était en pourcentage, convertir en décimal
-        if (confidence.includes('%')) {
-            confidenceValue = confidenceValue / 100;
-        }
-    }
-
-    // Vérifier si la conversion a échoué
-    if (isNaN(confidenceValue)) {
-        return 'confidence-error';
-    }
-
-    // Convertir en pourcentage pour la comparaison
-    const confidencePercent = confidenceValue * 100;
-
-    // Attribution des classes selon les seuils
-    if (confidencePercent >= 95) {
-        return 'confidence-100';
-    } else if (confidencePercent >= 85) {
-        return 'confidence-90';
-    } else if (confidencePercent >= 75) {
-        return 'confidence-85';
-    } else if (confidencePercent >= 50) {
-        return 'confidence-50';
-    } else if (confidencePercent > 0) {
-        return 'confidence-25';
-    } else {
-        return 'confidence-error';
+        
     }
 }
 

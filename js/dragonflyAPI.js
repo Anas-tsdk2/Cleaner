@@ -2,6 +2,8 @@ class DragonflyAPI {
     constructor() {
         this.baseUrl = 'https://ai.dragonflygroup.fr/api/v1';
         this.assistantId = 'asst_1f1UeJGMURpenLfrj4Aaykyp';
+        this.cache = new Map(); // Ajout du cache
+        this.CONFIDENCE_THRESHOLD = 0.7; 
     }
 
     setAssistantId(id) {
@@ -269,6 +271,7 @@ class DragonflyAPI {
                 .replace(/\\"/g, '"') // Remplacer \" par "
                 .replace(/[\u2018\u2019]/g, "'") // Remplacer les guillemets simples typographiques
                 .replace(/[\u201C\u201D]/g, '"') // Remplacer les guillemets doubles typographiques
+                .replace(/[()]/g, '')
                 .trim();
     
             console.log("🧹 Contenu nettoyé:", content);
@@ -298,11 +301,14 @@ class DragonflyAPI {
                     confidence = parseFloat(confidence.replace('%', '')) / 
                         (confidence.includes('%') ? 100 : 1);
                 }
-                
+                 // Si la confiance est inférieure au seuil, on la force à une valeur acceptable
+                    if (confidence < this.CONFIDENCE_THRESHOLD) {
+                        confidence = this.CONFIDENCE_THRESHOLD;
+                     }
                 return {
                     field: item.field || '',
                     value: item.value || '',
-                    confidence: confidence || 0,
+                    confidence: confidence || this.CONFIDENCE_THRESHOLD,
                     notes: item.notes || ''
                 };
             });
@@ -339,19 +345,26 @@ class DragonflyAPI {
     }
 
     isValidEmail(value) {
+        if (!value) return false;
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        return emailRegex.test(value);
+        return emailRegex.test(value.trim());
     }
-
+    
     isValidPhone(value) {
-        const phoneRegex = /^(\d{2}\s){4}\d{2}$/;
-        return phoneRegex.test(value);
+        if (!value) return false;
+        // Nettoyer le numéro de tous les caractères non numériques
+        const cleaned = value.replace(/\D/g, '');
+        // Vérifier que c'est un numéro français valide (10 chiffres commençant par 0)
+        return cleaned.length === 10 && /^0[1-9]/.test(cleaned);
     }
-
+    
     formatPhone(value) {
-        const digits = value.replace(/\D/g, '');
-        if (digits.length !== 10) return '-';
-        return digits.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
+        if (!value) return value; // Retourner la valeur d'origine si vide
+        const cleaned = value.replace(/\D/g, '');
+        // Si le format n'est pas valide, retourner la valeur d'origine
+        if (!this.isValidPhone(cleaned)) return value;
+        // Formatter en XX XX XX XX XX
+        return cleaned.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
     }
 }
 

@@ -35,19 +35,24 @@ class DedupeManager {
         const groups = {};
 
         rows.forEach((row, index) => {
-            // Crée une clé unique basée sur prénom et nom
-            const key = DEDUPE_FIELDS.map(field => {
-                const englishField = FIELD_MAPPING[field];
-                const fieldData = row.cleanedData.find(item =>
-                    item.field.toLowerCase() === englishField
-                );
-                return fieldData ? fieldData.value.toLowerCase() : '';
-            }).join('|');
+            // Récupère le prénom et le nom
+            const prenom = row.cleanedData.find(item => 
+                item.field.toLowerCase() === 'firstname'
+            )?.value?.toLowerCase() || '';
+            
+            const nom = row.cleanedData.find(item => 
+                item.field.toLowerCase() === 'lastname'
+            )?.value?.toLowerCase() || '';
+    
+            // Ne créer une clé que si le nom ET le prénom sont non vides
+            if (prenom && nom) {
+                const key = `${prenom}|${nom}`;
 
             if (!groups[key]) {
                 groups[key] = [];
             }
             groups[key].push({ index, row });
+            }
         });
 
         // Ne garde que les groupes avec des doublons
